@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -16,6 +17,8 @@ import {
   Settings,
   LogOut,
   Users,
+  Menu,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -38,6 +41,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const [open, setOpen] = useState(false)
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -45,14 +49,17 @@ export default function Sidebar({ user }: SidebarProps) {
     router.refresh()
   }
 
-  return (
-    <aside className="w-64 border-r bg-card flex flex-col h-full shrink-0">
+  const sidebarContent = (
+    <>
       {/* Logo */}
-      <div className="p-6 border-b">
+      <div className="p-6 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-2xl">🏠</span>
           <span className="font-bold text-lg">FreeDomus</span>
         </div>
+        <button className="md:hidden" onClick={() => setOpen(false)}>
+          <X className="h-5 w-5 text-muted-foreground" />
+        </button>
       </div>
 
       {/* Nav */}
@@ -63,6 +70,7 @@ export default function Sidebar({ user }: SidebarProps) {
             <Link
               key={href}
               href={href}
+              onClick={() => setOpen(false)}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 active
@@ -81,6 +89,7 @@ export default function Sidebar({ user }: SidebarProps) {
       <div className="p-4 border-t space-y-2">
         <Link
           href="/dashboard/settings"
+          onClick={() => setOpen(false)}
           className={cn(
             'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
             pathname.startsWith('/dashboard/settings')
@@ -97,6 +106,41 @@ export default function Sidebar({ user }: SidebarProps) {
           Cerrar sesión
         </Button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Botón hamburguesa — solo mobile */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-50 bg-card border rounded-lg p-2 shadow-sm"
+        onClick={() => setOpen(true)}
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Overlay — solo mobile cuando está abierto */}
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Sidebar desktop */}
+      <aside className="hidden md:flex w-64 border-r bg-card flex-col h-full shrink-0">
+        {sidebarContent}
+      </aside>
+
+      {/* Sidebar mobile (drawer) */}
+      <aside
+        className={cn(
+          'md:hidden fixed inset-y-0 left-0 z-50 w-64 bg-card flex flex-col h-full transition-transform duration-300',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   )
 }
