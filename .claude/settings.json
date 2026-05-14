@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(context7)",
+      "Skill(context7:*)",
+      "Bash(python3 ~/.claude/skills/context7/scripts/context7.py search \"next.js\")",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack --yes)",
+      "Bash(npx create-next-app@latest freedomusweb --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack --yes)",
+      "Bash(cp -r /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/freedomusweb/. /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/)",
+      "Bash(rm -rf /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/freedomusweb)",
+      "Bash(npm install *)",
+      "Bash(npx shadcn@latest init --defaults --yes)",
+      "Bash(npm run *)",
+      "Bash(npx shadcn@latest add button input label card badge --yes)"
+    ]
+  }
+}
