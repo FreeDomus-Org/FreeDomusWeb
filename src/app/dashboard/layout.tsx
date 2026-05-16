@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import Sidebar from '@/components/layout/Sidebar'
 
@@ -7,6 +8,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/auth/login')
+
+  const cookieStore = await cookies()
+  const workspaceId = cookieStore.get('workspace_id')?.value
+
+  if (!workspaceId) redirect('/select')
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">

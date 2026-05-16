@@ -13,7 +13,9 @@
       "Bash(npm run *)",
       "Bash(npx shadcn@latest add button input label card badge --yes)",
       "Bash(mv /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src/middleware.ts /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src/proxy.ts)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Skill(shadcn-ui-expert)",
+      "Skill(shadcn-ui-expert:*)"
     ],
     "additionalDirectories": [
       "/Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src"
