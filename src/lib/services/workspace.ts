@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { Workspace, WorkspaceCreate, WorkspaceMember, WorkspaceRole } from '@/types'
+import type { Workspace, WorkspaceCreate, WorkspaceInvitation, WorkspaceMember, WorkspaceRole } from '@/types'
 
 export async function fetchMyWorkspaces(userId: string): Promise<Workspace[]> {
   const { data, error } = await createClient()
@@ -70,6 +70,29 @@ export async function inviteMember(workspaceId: string, invitedEmail: string, ro
     body: { workspace_id: workspaceId, invited_email: invitedEmail, role },
   })
   if (error) throw error
+}
+
+export async function fetchInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {
+  const { data, error } = await createClient()
+    .from('workspace_invitations')
+    .select('*')
+    .eq('workspace_id', workspaceId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function deleteInvitation(invitationId: string): Promise<void> {
+  const { error } = await createClient().from('workspace_invitations').delete().eq('id', invitationId)
+  if (error) throw error
+}
+
+// invite-member rejects duplicates, so resending = delete the pending one and invite again
+export async function resendInvitation(invitation: WorkspaceInvitation): Promise<void> {
+  await deleteInvitation(invitation.id)
+  await inviteMember(invitation.workspace_id, invitation.invited_email, invitation.role)
 }
 
 export async function acceptInvitation(token: string): Promise<{ workspace_id: string; role: string }> {

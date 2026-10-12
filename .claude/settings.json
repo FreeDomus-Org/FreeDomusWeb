@@ -15,7 +15,16 @@
       "Bash(mv /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src/middleware.ts /Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src/proxy.ts)",
       "Bash(git commit *)",
       "Skill(shadcn-ui-expert)",
-      "Skill(shadcn-ui-expert:*)"
+      "Skill(shadcn-ui-expert:*)",
+      "Bash(grep -nA20 \"RecipeCreate\\\\|RecipeIngredient\\\\|INGREDIENT_UNITS\" src/types/index.ts)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\nDNS: %{time_namelookup}s  Connect: %{time_connect}s\\\\n\" -m 15 \"https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipes?select=id&limit=1\" -H \"apikey: sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I\")",
+      "Bash(curl -s -m 15 \"https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipes?select=id&limit=1\" -H \"apikey: sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -X OPTIONS -m 15 \"https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipe_ingredients\" -H \"Origin: https://free-domus-web.vercel.app\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: apikey,authorization,content-type\" -D -)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -m 15 \"https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipe_ingredients?select=id&limit=1\" -H \"apikey: sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I\")",
+      "Bash(curl -s -o /dev/null -D - -m 15 \"https://free-domus-web.vercel.app/dashboard/recipes\")",
+      "Bash(curl -s -m 20 \"https://free-domus-web.vercel.app/_next/static/chunks/026fcnz3uai08.js\")",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}  time_total=%{time_total}s\\\\n' -m 15 https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipes?select=* -H 'apikey: sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I' -H 'Authorization: Bearer sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I' -H 'Origin: https://free-domus-web.vercel.app')",
+      "Bash(curl -s -m 15 https://zhajwuprzaoovmkqxfvm.supabase.co/rest/v1/recipes?select=* -H 'apikey: sb_publishable_Grsu5-gsjNwfZPc4edWvzw_Jf1gFX-I' -H 'Origin: https://free-domus-web.vercel.app')"
     ],
     "additionalDirectories": [
       "/Users/elgalileo/Documents/Programacion/Elgalileo/FreeDomus/FreeDomusWeb/src"

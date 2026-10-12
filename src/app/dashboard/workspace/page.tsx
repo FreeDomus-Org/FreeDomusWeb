@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchMyWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, fetchMembers, removeMember, inviteMember } from '@/lib/services/workspace'
-import type { Workspace, WorkspaceMember } from '@/types'
+import { fetchMyWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, fetchMembers, removeMember, inviteMember, fetchInvitations, deleteInvitation, resendInvitation } from '@/lib/services/workspace'
+import type { Workspace, WorkspaceMember, WorkspaceInvitation } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, Edit2, X, Users, Crown, UserMinus, Loader2, Mail } from 'lucide-react'
+import { Plus, Trash2, Edit2, X, Users, Crown, UserMinus, Loader2, Mail, Send } from 'lucide-react'
 
 const ROLE_LABELS: Record<string, string> = { owner: 'Propietario', admin: 'Admin', member: 'Miembro' }
 const ROLE_COLORS: Record<string, string> = { owner: 'bg-amber-100 text-amber-700', admin: 'bg-blue-100 text-blue-700', member: 'bg-gray-100 text-gray-700' }
@@ -31,6 +31,8 @@ export default function WorkspacePage() {
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
+  const [busyInvitation, setBusyInvitation] = useState<string | null>(null)
 
   const load = useCallback(async (uid: string) => {
     setLoading(true)
@@ -42,6 +44,10 @@ export default function WorkspacePage() {
     try { setMembers(await fetchMembers(wsId)) } finally { setMembersLoading(false) }
   }, [])
 
+  const loadInvitations = useCallback(async (wsId: string) => {
+    try { setInvitations(await fetchInvitations(wsId)) } catch { setInvitations([]) }
+  }, [])
+
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       const uid = data.user?.id
@@ -50,8 +56,8 @@ export default function WorkspacePage() {
   }, [load])
 
   useEffect(() => {
-    if (selected) loadMembers(selected.id)
-  }, [selected, loadMembers])
+    if (selected) { loadMembers(selected.id); loadInvitations(selected.id) }
+  }, [selected, loadMembers, loadInvitations])
 
   function openCreate() {
     setEditing(null); setWsName(''); setWsIcon('🏠'); setShowCreateForm(true)
@@ -98,9 +104,33 @@ export default function WorkspacePage() {
     try {
       await inviteMember(selected.id, inviteEmail.trim(), 'member')
       setInviteSuccess(true); setInviteEmail('')
+      loadInvitations(selected.id)
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'Error al enviar la invitación')
     } finally { setInviting(false) }
+  }
+
+  async function handleResendInvitation(inv: WorkspaceInvitation) {
+    if (!selected) return
+    setBusyInvitation(inv.id); setInviteError(null); setInviteSuccess(false)
+    try {
+      await resendInvitation(inv)
+      setInviteSuccess(true)
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Error al reenviar la invitación')
+    } finally {
+      await loadInvitations(selected.id)
+      setBusyInvitation(null)
+    }
+  }
+
+  async function handleDeleteInvitation(inv: WorkspaceInvitation) {
+    if (!confirm(`¿Eliminar la invitación enviada a ${inv.invited_email}?`)) return
+    setBusyInvitation(inv.id)
+    try {
+      await deleteInvitation(inv.id)
+      setInvitations(prev => prev.filter(i => i.id !== inv.id))
+    } finally { setBusyInvitation(null) }
   }
 
   const isOwner = userId && selected && workspaces.find(w => w.id === selected.id)?.owner_id === userId
@@ -126,8 +156,9 @@ export default function WorkspacePage() {
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Mis workspaces</h2>
             {workspaces.map(ws => (
-              <button key={ws.id} onClick={() => setSelected(ws)}
-                className={`w-full text-left rounded-xl border p-4 transition-all ${selected?.id === ws.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+              <div key={ws.id} role="button" tabIndex={0} onClick={() => setSelected(ws)}
+                onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelected(ws) } }}
+                className={`w-full text-left rounded-xl border p-4 transition-all cursor-pointer ${selected?.id === ws.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-2xl">{ws.icon ?? '🏠'}</span>
@@ -143,7 +174,7 @@ export default function WorkspacePage() {
                     </div>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
 
@@ -206,6 +237,43 @@ export default function WorkspacePage() {
                     </form>
                     {inviteError && <p className="text-sm text-destructive mt-2">{inviteError}</p>}
                     {inviteSuccess && <p className="text-sm text-green-600 mt-2">Invitación enviada correctamente.</p>}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Sent invitations */}
+              {isOwner && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4" /> Invitaciones enviadas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {invitations.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-2">No hay invitaciones pendientes.</p>
+                    ) : invitations.map(inv => {
+                      const expired = new Date(inv.expires_at) < new Date()
+                      const busy = busyInvitation === inv.id
+                      return (
+                        <div key={inv.id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{inv.invited_email}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {expired ? 'Expirada' : 'Expira'} el {new Date(inv.expires_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {expired && <Badge variant="outline">Expirada</Badge>}
+                            <Button size="sm" variant="outline" disabled={busy} onClick={() => handleResendInvitation(inv)}>
+                              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reenviar'}
+                            </Button>
+                            <button disabled={busy} onClick={() => handleDeleteInvitation(inv)} title="Eliminar invitación"
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </CardContent>
                 </Card>
               )}
