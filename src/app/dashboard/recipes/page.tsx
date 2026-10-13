@@ -84,7 +84,8 @@ export default function RecipesPage() {
       setWorkspaceId(wsId)
       load(uid, wsId)
       try {
-        setProducts(await fetchProducts(uid, wsId))
+        // Same scope as the Productos page (personal catalog), regardless of the workspace cookie
+        setProducts(await fetchProducts(uid))
       } catch (err) {
         console.error('fetchProducts failed', err)
       }
