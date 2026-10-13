@@ -119,7 +119,10 @@ export default function TodayPlanner() {
     try {
       const minutes = Math.max(1, Math.round((nowMs() - timer.startedAt) / 60000))
       const workspaceId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
-      await finishRecipe(timer.recipeId, userId, workspaceId, minutes)
+      const entry = today.find(e => e.id === timer.entryId)
+      const mealType = entry && (['desayuno', 'almuerzo', 'cena'] as const).find(m => m === entry.meal_type)
+      await finishRecipe(timer.recipeId, userId, workspaceId, minutes,
+        mealType ? { mealType, plannerEntryId: timer.entryId } : undefined)
       setCookedToday(prev => [...prev, timer.recipeId])
       writeTimer(null); setTimer(null)
     } catch {

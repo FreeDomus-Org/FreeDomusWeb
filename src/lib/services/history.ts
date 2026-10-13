@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/client'
 import type { CookingHistory, CookingHistoryCreate } from '@/types'
+import { currentWorkspaceId, workspaceScope } from '@/lib/workspace'
 
 export async function fetchHistory(userId: string, workspaceId?: string | null): Promise<CookingHistory[]> {
   const supabase = createClient()
   let query = supabase.from('cooking_history').select('*, recipe:recipes(*)').order('cooked_at', { ascending: false })
 
   if (workspaceId) {
-    // Workspace entries plus the user's personal ones (the history form saves those)
-    query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`)
+    // Workspace entries plus the user's personal ones
+    query = query.or(workspaceScope(userId, workspaceId))
   } else {
     query = query.eq('user_id', userId).is('workspace_id', null)
   }
@@ -17,26 +18,26 @@ export async function fetchHistory(userId: string, workspaceId?: string | null):
   return (data ?? []) as CookingHistory[]
 }
 
-// The user's cooking history since a given moment, oldest first
+// Household cooking history (whole workspace) since a given moment, oldest first
 export async function fetchHistorySince(userId: string, since: Date): Promise<CookingHistory[]> {
-  const { data, error } = await createClient()
-    .from('cooking_history')
-    .select('*, recipe:recipes(*)')
-    .eq('user_id', userId)
+  const workspaceId = currentWorkspaceId()
+  let query = createClient().from('cooking_history').select('*, recipe:recipes(*)')
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
+  const { data, error } = await query
     .gte('cooked_at', since.toISOString())
     .order('cooked_at', { ascending: true })
   if (error) throw error
   return (data ?? []) as CookingHistory[]
 }
 
-// Recipe ids the user cooked today (local day), one per history row
+// Recipe ids cooked today (local day) by anyone in the workspace, one per history row
 export async function fetchCookedToday(userId: string): Promise<string[]> {
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const end = new Date(start); end.setDate(end.getDate() + 1)
-  const { data, error } = await createClient()
-    .from('cooking_history')
-    .select('recipe_id')
-    .eq('user_id', userId)
+  const workspaceId = currentWorkspaceId()
+  let query = createClient().from('cooking_history').select('recipe_id')
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
+  const { data, error } = await query
     .gte('cooked_at', start.toISOString())
     .lt('cooked_at', end.toISOString())
   if (error) throw error
@@ -56,10 +57,11 @@ export async function fetchTopRated(userId: string, limit = 10): Promise<Cooking
   return (data ?? []) as CookingHistory[]
 }
 
+// Se registra en el espacio de trabajo actual salvo que se indique otro
 export async function createHistoryEntry(entry: CookingHistoryCreate): Promise<CookingHistory> {
   const { data, error } = await createClient()
     .from('cooking_history')
-    .insert(entry)
+    .insert({ ...entry, workspace_id: entry.workspace_id ?? currentWorkspaceId() })
     .select('*, recipe:recipes(*)')
     .single()
   if (error) throw error

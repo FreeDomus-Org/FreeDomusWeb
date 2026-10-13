@@ -79,11 +79,12 @@ export interface WeeklyPlanner {
   meal_type: string   // 'desayuno' | 'almuerzo' | 'cena'
   recipe_id: string | null
   notes: string | null
+  for_user_id: string | null // null = plato para todo el espacio de trabajo
   created_at: string
   recipe?: Recipe
 }
 
-export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe'>
+export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe' | 'for_user_id'> & { for_user_id?: string | null }
 
 // ─── Cooking History ──────────────────────────────────────────────────────────
 export interface CookingHistory {
@@ -96,6 +97,8 @@ export interface CookingHistory {
   rating: number | null
   feedback: string | null
   actual_time_minutes: number | null
+  meal_type?: 'desayuno' | 'almuerzo' | 'cena' | null // comida en la que se cocinó (null en registros antiguos)
+  planner_entry_id?: string | null
   created_at: string
   recipe?: Recipe
 }

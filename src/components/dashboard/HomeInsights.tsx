@@ -36,7 +36,8 @@ function lastSevenDays(): Date[] {
 const MEAL_ORDER: MealKey[] = ['desayuno', 'almuerzo', 'cena']
 const mealByHour = (d: Date): MealKey => { const h = d.getHours(); return h < 11 ? 'desayuno' : h < 17 ? 'almuerzo' : 'cena' }
 
-// El historial no guarda la comida, así que se deduce por día:
+// Comida de cada registro: la guardada al cocinar (meal_type) si existe. Si no
+// (registros antiguos o manuales), se deduce por día:
 // 1. Si la receta estaba en el planificador ese día, esa comida; si no, la de su hora.
 // 2. Dentro del día las comidas van en orden (desayuno → almuerzo → cena): si el planificador
 //    contradice ese orden (p. ej. "desayuno" cocinado después del almuerzo), manda la hora.
@@ -56,6 +57,12 @@ function resolveMeals(history: CookingHistory[], plans: WeeklyPlanner[]): Map<st
         const week = formatWeekStart(getWeekStart(d))
         const dow = (d.getDay() + 6) % 7
         const planned = plans.find(p => p.week_start_date === week && p.day_of_week === dow && p.recipe_id === h.recipe_id)
+        // La comida guardada al cocinar es definitiva; las deducidas respetan el orden del día
+        if (h.meal_type && isMeal(h.meal_type)) {
+          prev = Math.max(prev, MEAL_ORDER.indexOf(h.meal_type))
+          result.set(h.id, h.meal_type)
+          return
+        }
         const tentative = planned && isMeal(planned.meal_type) ? planned.meal_type : mealByHour(d)
         const idx = MEAL_ORDER.indexOf(tentative) >= prev
           ? MEAL_ORDER.indexOf(tentative)

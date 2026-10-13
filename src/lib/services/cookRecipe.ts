@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
-import type { RecipeIngredient, Inventory } from '@/types'
+import type { RecipeIngredient, Inventory, CookingHistory } from '@/types'
+import { workspaceScope } from '@/lib/workspace'
 
 // ─── Sistema de unidades ───────────────────────────────────────────────────────
 // Cada unidad pertenece a una dimensión y tiene un factor hacia la unidad base.
@@ -61,12 +62,6 @@ function humanize(base: number, unit: string): string {
   return `${Math.round(base * 100) / 100} ${unit}`
 }
 
-// Workspace inventory plus the user's personal items (the Inventario page saves those),
-// same scope as recipes and history
-function inventoryScope(userId: string, workspaceId: string) {
-  return `workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`
-}
-
 // ─── Verificar disponibilidad ─────────────────────────────────────────────────
 
 export async function checkIngredients(
@@ -85,7 +80,7 @@ export async function checkIngredients(
 
   let invQuery = supabase.from('inventory').select('*, product:products(*)')
   if (workspaceId) {
-    invQuery = invQuery.or(inventoryScope(userId, workspaceId))
+    invQuery = invQuery.or(workspaceScope(userId, workspaceId))
   } else {
     invQuery = invQuery.eq('user_id', userId).is('workspace_id', null)
   }
@@ -133,7 +128,9 @@ export async function finishRecipe(
   recipeId: string,
   userId: string,
   workspaceId: string | null,
-  actualMinutes: number | null = null
+  actualMinutes: number | null = null,
+  // Desde "¿Qué cocinamos hoy?" se sabe la comida y el plato planificado
+  meal?: { mealType: NonNullable<CookingHistory['meal_type']>; plannerEntryId: string },
 ): Promise<void> {
   await deductFromInventory(recipeId, userId, workspaceId)
 
@@ -143,6 +140,8 @@ export async function finishRecipe(
     recipe_id: recipeId,
     cooked_at: new Date().toISOString(),
     actual_time_minutes: actualMinutes,
+    meal_type: meal?.mealType ?? null,
+    planner_entry_id: meal?.plannerEntryId ?? null,
   })
   if (error) throw error
 }
@@ -163,7 +162,7 @@ async function deductFromInventory(
 
   let invQuery = supabase.from('inventory').select('*')
   if (workspaceId) {
-    invQuery = invQuery.or(inventoryScope(userId, workspaceId))
+    invQuery = invQuery.or(workspaceScope(userId, workspaceId))
   } else {
     invQuery = invQuery.eq('user_id', userId).is('workspace_id', null)
   }

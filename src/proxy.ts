@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const isAuthRoute = pathname.startsWith('/auth')
-  const isPublicRoute = pathname === '/'
+  const isPublicRoute = pathname === '/' || pathname.startsWith('/invite') // /invite gestiona su propia sesión para no perder el token
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     return NextResponse.redirect(new URL('/auth/login', request.url))

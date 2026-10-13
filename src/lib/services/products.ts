@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Product, ProductCreate } from '@/types'
+import { currentWorkspaceId, workspaceScope } from '@/lib/workspace'
 
-export async function fetchProducts(userId: string, workspaceId?: string | null): Promise<Product[]> {
+export async function fetchProducts(userId: string, workspaceId: string | null = currentWorkspaceId()): Promise<Product[]> {
   const supabase = createClient()
   let query = supabase.from('products').select('*').order('name')
 
   if (workspaceId) {
-    query = query.eq('workspace_id', workspaceId)
+    query = query.or(workspaceScope(userId, workspaceId))
   } else {
     query = query.eq('user_id', userId).is('workspace_id', null)
   }
@@ -17,10 +18,10 @@ export async function fetchProducts(userId: string, workspaceId?: string | null)
 }
 
 export async function searchProducts(userId: string, term: string): Promise<Product[]> {
-  const { data, error } = await createClient()
-    .from('products')
-    .select('*')
-    .eq('user_id', userId)
+  const workspaceId = currentWorkspaceId()
+  let query = createClient().from('products').select('*')
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
+  const { data, error } = await query
     .ilike('name', `%${term}%`)
     .order('name')
     .limit(20)
@@ -29,8 +30,10 @@ export async function searchProducts(userId: string, term: string): Promise<Prod
   return data ?? []
 }
 
+// Se crea en el espacio de trabajo actual salvo que se indique otro
 export async function createProduct(product: ProductCreate): Promise<Product> {
-  const { data, error } = await createClient().from('products').insert(product).select().single()
+  const row = { ...product, workspace_id: product.workspace_id ?? currentWorkspaceId() }
+  const { data, error } = await createClient().from('products').insert(row).select().single()
   if (error) throw error
   return data
 }

@@ -1,12 +1,14 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Inventory, InventoryCreate } from '@/types'
+import { currentWorkspaceId, workspaceScope } from '@/lib/workspace'
 
-export async function fetchInventory(userId: string, workspaceId?: string | null): Promise<Inventory[]> {
+// Inventario del espacio de trabajo (compartido) más lo personal que quede del usuario
+export async function fetchInventory(userId: string, workspaceId: string | null = currentWorkspaceId()): Promise<Inventory[]> {
   const supabase = createClient()
   let query = supabase.from('inventory').select('*, product:products(*)').order('updated_at', { ascending: false })
 
   if (workspaceId) {
-    query = query.eq('workspace_id', workspaceId)
+    query = query.or(workspaceScope(userId, workspaceId))
   } else {
     query = query.eq('user_id', userId).is('workspace_id', null)
   }
@@ -17,10 +19,10 @@ export async function fetchInventory(userId: string, workspaceId?: string | null
 }
 
 export async function fetchInventoryByLocation(userId: string, location: string): Promise<Inventory[]> {
-  const { data, error } = await createClient()
-    .from('inventory')
-    .select('*, product:products(*)')
-    .eq('user_id', userId)
+  const workspaceId = currentWorkspaceId()
+  let query = createClient().from('inventory').select('*, product:products(*)')
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
+  const { data, error } = await query
     .eq('location', location)
     .order('expiration_date', { ascending: true })
 
@@ -44,10 +46,11 @@ export async function fetchExpiringItems(userId: string, daysAhead = 7): Promise
   return (data ?? []) as Inventory[]
 }
 
+// Se crea en el espacio de trabajo actual salvo que se indique otro
 export async function createInventoryItem(item: InventoryCreate): Promise<Inventory> {
   const { data, error } = await createClient()
     .from('inventory')
-    .insert(item)
+    .insert({ ...item, workspace_id: item.workspace_id ?? currentWorkspaceId() })
     .select('*, product:products(*)')
     .single()
   if (error) throw error

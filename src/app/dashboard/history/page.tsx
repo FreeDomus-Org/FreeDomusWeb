@@ -98,8 +98,9 @@ export default function HistoryPage() {
     setSaving(true)
     try {
       const payload: CookingHistoryCreate = {
-        user_id: userId,
-        workspace_id: null,
+        // Al editar se conserva quién lo registró y su espacio de trabajo; al crear, el servicio usa el actual
+        user_id: editing?.user_id ?? userId,
+        workspace_id: editing?.workspace_id ?? null,
         recipe_id: form.recipe_id,
         // Fecha + hora locales (sin hora, mediodía) para que la zona horaria no cambie el día
         cooked_at: new Date(`${form.cooked_at}T${form.cooked_time || '12:00'}`).toISOString(),

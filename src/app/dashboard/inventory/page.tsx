@@ -138,8 +138,9 @@ export default function InventoryPage() {
       if (!productId) return
 
       const payload: InventoryCreate = {
-        user_id: userId,
-        workspace_id: null,
+        // Al editar se conserva quién lo creó y su espacio de trabajo; al crear, el servicio usa el actual
+        user_id: editing?.user_id ?? userId,
+        workspace_id: editing?.workspace_id ?? null,
         product_id: productId,
         quantity: Number(form.quantity),
         unit: form.unit || null,

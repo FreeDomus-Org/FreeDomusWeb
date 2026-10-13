@@ -55,7 +55,9 @@ export default function RegisterPage() {
       return
     }
 
-    router.push('/dashboard')
+    // Vuelve al enlace de invitación si venía de uno; solo rutas internas
+    const next = new URLSearchParams(window.location.search).get('next')
+    router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard')
     router.refresh()
   }
 
@@ -163,7 +165,7 @@ export default function RegisterPage() {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               ¿Ya tienes cuenta?{' '}
-              <Link href="/auth/login" className="font-semibold text-leaf hover:underline">
+              <Link href="/auth/login" onClick={e => { e.preventDefault(); router.push(`/auth/login${window.location.search}`) }} className="font-semibold text-leaf hover:underline">
                 Inicia sesión
               </Link>
             </p>

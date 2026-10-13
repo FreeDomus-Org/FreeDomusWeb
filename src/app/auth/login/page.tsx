@@ -35,7 +35,9 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    // Vuelve al enlace de invitación si venía de uno; solo rutas internas
+    const next = new URLSearchParams(window.location.search).get('next')
+    router.push(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard')
     router.refresh()
   }
 
@@ -105,7 +107,7 @@ export default function LoginPage() {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               ¿No tienes cuenta?{' '}
-              <Link href="/auth/register" className="font-semibold text-leaf hover:underline">
+              <Link href="/auth/register" onClick={e => { e.preventDefault(); router.push(`/auth/register${window.location.search}`) }} className="font-semibold text-leaf hover:underline">
                 Regístrate
               </Link>
             </p>
