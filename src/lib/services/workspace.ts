@@ -112,5 +112,6 @@ export async function acceptInvitation(token: string): Promise<{ workspace_id: s
     body: { token },
   })
   if (error) throw error
-  return data
+  // La función devuelve { workspace: { id, ... }, role }
+  return { workspace_id: data.workspace?.id ?? data.workspace_id, role: data.role }
 }

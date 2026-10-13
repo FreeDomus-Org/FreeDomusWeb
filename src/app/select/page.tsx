@@ -5,6 +5,14 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { selectWorkspaceAction } from '@/app/actions/workspace'
 
+interface PendingInvite {
+  token: string
+  role: string
+  workspace_id: string
+  workspace_name: string
+  workspace_icon: string | null
+}
+
 export default async function SelectWorkspacePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -15,6 +23,9 @@ export default async function SelectWorkspacePage() {
     .eq('user_id', user!.id)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: invitations } = await supabase.rpc('my_pending_invitations')
+  const pendingInvites: PendingInvite[] = invitations ?? []
+
   const workspaces = (memberships?.map((m: any) => m.workspace) ?? []).filter(Boolean)
 
   return (
@@ -33,7 +44,27 @@ export default async function SelectWorkspacePage() {
           <p className="text-muted-foreground text-sm">Selecciona un espacio de trabajo para continuar</p>
         </div>
 
-        {workspaces.length === 0 ? (
+        {pendingInvites.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <p className="text-sm font-semibold text-ink-5">Invitaciones pendientes</p>
+            {pendingInvites.map((inv) => (
+              <Link
+                key={inv.token}
+                href={`/invite?token=${inv.token}`}
+                className="group flex w-full items-center gap-4 rounded-3xl border-2 border-lime bg-card p-5 text-left shadow-card transition-all duration-200 hover:bg-forest hover:text-[#f3f7ec]"
+              >
+                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-lime text-3xl">{inv.workspace_icon ?? '🏠'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-xl font-bold">{inv.workspace_name}</p>
+                  <Badge variant="secondary" className="mt-1 text-xs">✉️ Te invitaron · Toca para unirte</Badge>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-ink-5 transition-colors group-hover:text-lime" />
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {workspaces.length === 0 && pendingInvites.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-[#b9c5b5] py-20 text-center">
             <div className="text-5xl mb-4">🏡</div>
             <h2 className="mb-1 font-display text-xl font-bold">Aún no tienes ningún hogar</h2>
