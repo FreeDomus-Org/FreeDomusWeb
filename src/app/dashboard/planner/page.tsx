@@ -44,7 +44,7 @@ export default function PlannerPage() {
     try {
       const [planData, recipesData] = await Promise.all([
         fetchWeekPlanner(uid, formatWeekStart(ws)),
-        fetchRecipes(uid),
+        fetchRecipes(uid, document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null),
       ])
       setPlan(planData)
       setRecipes(recipesData)
