@@ -379,7 +379,7 @@ export default function RecipesPage() {
                     <div className="rounded-md border bg-background shadow-sm max-h-36 overflow-y-auto">
                       {productResults.map(p => (
                         <button key={p.id} type="button"
-                          onClick={() => { setSelectedProduct(p); setProductSearch(''); setProductResults([]) }}
+                          onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch(''); setProductResults([]) }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between">
                           <span>{p.name}</span>
                           <span className="text-xs text-muted-foreground">{p.unit}</span>
