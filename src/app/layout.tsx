@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,12 @@ const instrument = Instrument_Sans({
 export const metadata: Metadata = {
   title: "FreeDomus",
   description: "Gestión inteligente de tu hogar",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

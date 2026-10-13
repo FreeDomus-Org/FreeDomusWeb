@@ -313,7 +313,7 @@ export default function HomeInsights() {
   return (
     <>
       {/* Caducan pronto */}
-      <InfoCard icon={AlarmClock} title="Caducan pronto" subtitle="Próximos 7 días" href="/dashboard/inventory" className="bg-peach lg:row-span-2">
+      <InfoCard icon={AlarmClock} title="Caducan pronto" subtitle="Próximos 7 días" href="/dashboard/inventory" className="bg-peach xl:row-span-2">
         {loading ? <LoadingState className="py-6" /> : expiring.length === 0 ? (
           <p className="mt-auto text-[13.5px] text-ink-2">Nada caduca esta semana. Todo en buen estado.</p>
         ) : (
@@ -368,7 +368,7 @@ export default function HomeInsights() {
       </InfoCard>
 
       {/* Hora de las comidas */}
-      <InfoCard icon={ChartColumn} title="Hora de las comidas" subtitle="A qué hora se cocinó cada comida · últimos 7 días" className="bg-card sm:col-span-2 lg:col-span-4">
+      <InfoCard icon={ChartColumn} title="Hora de las comidas" subtitle="A qué hora se cocinó cada comida · últimos 7 días" className="bg-card sm:col-span-2 xl:col-span-4">
         {loading ? <LoadingState className="py-10" /> : (
           <div className="flex flex-col gap-4">
             {/* Leyenda + promedios */}

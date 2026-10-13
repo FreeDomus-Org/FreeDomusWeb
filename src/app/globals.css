@@ -203,3 +203,20 @@
 @utility stripes-light {
   background: repeating-linear-gradient(45deg, var(--color-sage) 0 8px, var(--color-canvas) 8px 16px);
 }
+
+/* iOS hace zoom al enfocar campos <16px: en táctil los dejamos en 16px */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Evita el rebote horizontal y el ajuste de texto automático en iOS */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  overflow-x: hidden;
+}

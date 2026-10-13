@@ -34,8 +34,8 @@ export default async function DashboardPage() {
         </form>
       </PageHeader>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:auto-rows-[minmax(170px,auto)] lg:grid-cols-4">
-        <div className="sm:col-span-2 lg:row-span-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:auto-rows-[minmax(170px,auto)] xl:grid-cols-4">
+        <div className="sm:col-span-2 xl:row-span-2">
           <TodayPlanner />
         </div>
 

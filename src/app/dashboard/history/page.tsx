@@ -165,7 +165,7 @@ export default function HistoryPage() {
             </Chip>
           ))}
         </div>
-        <SearchField className="w-[320px]" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por receta..." />
+        <SearchField className="w-full sm:w-[320px]" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por receta..." />
       </div>
 
       {loading ? (

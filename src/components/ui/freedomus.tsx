@@ -104,7 +104,7 @@ export function SidePanel({ eyebrow, title, subtitle, onClose, footer, wide, chi
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-forest/45" onClick={onClose} />
       <aside className={cn('relative flex h-full w-full flex-col bg-card text-foreground shadow-drawer sm:rounded-l-[28px]', wide ? 'max-w-[500px]' : 'max-w-[440px]')}>
-        <div className="flex items-center justify-between gap-4 px-7 pt-6 pb-4">
+        <div className="flex items-center justify-between gap-4 px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-4 sm:px-7 sm:pt-6">
           <div className="min-w-0">
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
             <h2 className="mt-0.5 font-display text-[26px] leading-tight font-extrabold tracking-[-0.01em]">{title}</h2>
@@ -112,8 +112,8 @@ export function SidePanel({ eyebrow, title, subtitle, onClose, footer, wide, chi
           </div>
           <IconAction size="lg" onClick={onClose} aria-label="Cerrar"><X className="stroke-[2.4]" /></IconAction>
         </div>
-        <div className="flex flex-1 flex-col gap-[18px] overflow-y-auto px-7 pt-1 pb-6">{children}</div>
-        {footer && <div className="flex gap-2.5 border-t border-canvas px-7 pt-4 pb-6">{footer}</div>}
+        <div className="flex flex-1 flex-col gap-[18px] overflow-y-auto px-5 pt-1 pb-6 sm:px-7">{children}</div>
+        {footer && <div className="flex gap-2.5 border-t border-canvas px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-7">{footer}</div>}
       </aside>
     </div>
   )
@@ -126,7 +126,7 @@ export function CenterModal({ eyebrow, title, subtitle, onClose, footer, childre
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-forest/45" onClick={onClose} />
-      <div className={cn('relative flex max-h-[85vh] w-full max-w-md flex-col rounded-[28px] bg-card text-foreground shadow-drawer', className)}>
+      <div className={cn('relative flex max-h-[85dvh] w-full max-w-md flex-col rounded-[28px] bg-card text-foreground shadow-drawer', className)}>
         <div className="flex items-center justify-between gap-4 px-6 pt-6 pb-3">
           <div className="min-w-0">
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
@@ -136,7 +136,7 @@ export function CenterModal({ eyebrow, title, subtitle, onClose, footer, childre
           <IconAction size="lg" onClick={onClose} aria-label="Cerrar"><X className="stroke-[2.4]" /></IconAction>
         </div>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 pb-5">{children}</div>
-        {footer && <div className="flex gap-2.5 border-t border-canvas px-6 pt-4 pb-6">{footer}</div>}
+        {footer && <div className="flex gap-2.5 border-t border-canvas px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">{footer}</div>}
       </div>
     </div>
   )

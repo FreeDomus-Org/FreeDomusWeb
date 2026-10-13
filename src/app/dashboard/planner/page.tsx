@@ -125,7 +125,7 @@ export default function PlannerPage() {
       {loading ? (
         <LoadingState />
       ) : (
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
           <div className="flex min-h-[520px] min-w-[860px] flex-col gap-2.5">
             <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] gap-2.5">
               <div />
@@ -154,7 +154,7 @@ export default function PlannerPage() {
                         {entry.recipe?.name ?? '...'}
                       </button>
                       <button onClick={() => handleRemove(entry)} aria-label="Quitar"
-                        className="absolute top-2 right-2 grid size-6 cursor-pointer place-items-center rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger">
+                        className="absolute top-2 right-2 grid size-6 pointer-coarse:size-8 cursor-pointer place-items-center rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100 hover:text-danger">
                         <X className="size-3 stroke-[2.6]" />
                       </button>
                     </div>

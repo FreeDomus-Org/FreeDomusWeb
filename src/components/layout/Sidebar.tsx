@@ -62,7 +62,7 @@ export default function Sidebar({ user }: SidebarProps) {
           </div>
           FreeDomus
         </div>
-        <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
+        <button className="lg:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
           <X className="h-5 w-5 text-ink-5" />
         </button>
       </div>
@@ -77,7 +77,7 @@ export default function Sidebar({ user }: SidebarProps) {
               href={href}
               onClick={() => setOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-[14px] px-3 py-[11px] text-[14.5px] font-medium transition-colors',
+                'flex items-center gap-3 rounded-[14px] px-3 py-3 text-[14.5px] font-medium transition-colors',
                 active ? 'bg-forest text-lime' : 'text-ink-3 hover:bg-sage hover:text-forest'
               )}
             >
@@ -113,32 +113,40 @@ export default function Sidebar({ user }: SidebarProps) {
 
   return (
     <>
-      {/* Botón hamburguesa — solo mobile */}
-      <button
-        className="fixed top-4 left-4 z-40 rounded-full bg-card p-2.5 shadow-panel md:hidden"
-        onClick={() => setOpen(true)}
-        aria-label="Abrir menú"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+      {/* Barra superior — mobile y tablet vertical */}
+      <div className="fixed inset-x-0 top-0 z-40 flex items-center gap-3 bg-canvas/90 px-4 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-3 backdrop-blur sm:px-6 lg:hidden">
+        <button
+          className="grid size-11 place-items-center rounded-full bg-card shadow-panel"
+          onClick={() => setOpen(true)}
+          aria-label="Abrir menú"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-2 font-display text-lg font-extrabold">
+          <div className="grid size-8 place-items-center rounded-full bg-lime">
+            <Home className="size-4 stroke-[2.2] text-forest" />
+          </div>
+          FreeDomus
+        </div>
+      </div>
 
       {/* Overlay — solo mobile cuando está abierto */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-forest/45 md:hidden"
+          className="fixed inset-0 z-40 bg-forest/45 lg:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
       {/* Sidebar desktop */}
-      <aside className="hidden w-[232px] shrink-0 flex-col gap-[22px] overflow-hidden rounded-3xl bg-card px-3.5 py-[22px] shadow-panel md:flex">
+      <aside className="hidden w-[232px] shrink-0 flex-col gap-[22px] overflow-hidden rounded-3xl bg-card px-3.5 py-[22px] shadow-panel lg:flex">
         {sidebarContent}
       </aside>
 
       {/* Sidebar mobile (drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col gap-[22px] rounded-r-3xl bg-card px-3.5 py-[22px] shadow-panel transition-transform duration-300 md:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(280px,85vw)] flex-col gap-[22px] rounded-r-3xl bg-card px-3.5 pt-[calc(1.375rem+env(safe-area-inset-top))] pb-[calc(1.375rem+env(safe-area-inset-bottom))] shadow-panel transition-transform duration-300 lg:hidden',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
