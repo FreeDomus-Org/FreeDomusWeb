@@ -43,20 +43,30 @@ export default function InvitePage() {
   }, [router])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
-      <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-[28px] bg-card p-8 text-center shadow-panel">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas p-4">
+      <div className="stripes pointer-events-none absolute -top-24 -right-24 size-80 rounded-full opacity-90" />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 size-64 rounded-full bg-lime/60" />
+      <div className="relative flex w-full max-w-md flex-col items-center gap-5 rounded-[28px] bg-card p-8 text-center shadow-panel">
+        <div className="grid size-14 place-items-center rounded-full bg-lime">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#17251c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+        </div>
+        <p className="font-display text-[32px] font-extrabold leading-none tracking-[-0.02em]">FreeDomus</p>
+
         {error ? (
           <>
-            <AlertCircle className="size-10 text-danger" />
-            <h1 className="font-display text-2xl font-extrabold">No se pudo unir</h1>
-            <p className="text-sm text-ink-5">{error}</p>
-            <Button size="lg" onClick={() => router.push('/select')}>Ir a mis espacios de trabajo</Button>
+            <div className="w-full space-y-3 rounded-2xl bg-danger-soft p-5">
+              <AlertCircle className="mx-auto size-8 text-danger" />
+              <h1 className="font-display text-xl font-extrabold text-danger">No se pudo unir</h1>
+              <p className="text-sm text-danger">{error}</p>
+            </div>
+            <Button size="lg" className="w-full" onClick={() => router.push('/select')}>Ir a mis espacios de trabajo</Button>
           </>
         ) : (
-          <>
-            <Loader2 className="size-10 animate-spin text-leaf" />
-            <h1 className="font-display text-2xl font-extrabold">Uniéndote al espacio de trabajo…</h1>
-          </>
+          <div className="w-full space-y-3 rounded-2xl bg-sage p-6">
+            <Loader2 className="mx-auto size-8 animate-spin text-leaf" />
+            <h1 className="font-display text-xl font-extrabold">Aceptando tu invitación…</h1>
+            <p className="text-sm text-ink-5">Un momento, te estamos uniendo al espacio de trabajo.</p>
+          </div>
         )}
       </div>
     </div>
