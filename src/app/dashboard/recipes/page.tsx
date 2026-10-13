@@ -83,8 +83,11 @@ export default function RecipesPage() {
       const wsId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
       setWorkspaceId(wsId)
       load(uid, wsId)
-      const prods = await fetchProducts(uid, wsId)
-      setProducts(prods)
+      try {
+        setProducts(await fetchProducts(uid, wsId))
+      } catch (err) {
+        console.error('fetchProducts failed', err)
+      }
     })
     const saved = localStorage.getItem('recipeCategories')
     if (saved) setCustomCategories(JSON.parse(saved))
@@ -382,6 +385,13 @@ export default function RecipesPage() {
                         </button>
                       ))}
                     </div>
+                  )}
+                  {productSearch.trim() && productResults.length === 0 && !selectedProduct && (
+                    <p className="text-xs text-muted-foreground px-1">
+                      {products.length === 0
+                        ? 'Aún no tienes productos en el catálogo. Créalos primero en Productos.'
+                        : `No hay productos que coincidan con "${productSearch.trim()}". Créalo primero en Productos.`}
+                    </p>
                   )}
                   {selectedProduct && (
                     <div className="flex gap-2 items-center">

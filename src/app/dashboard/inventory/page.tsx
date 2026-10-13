@@ -19,9 +19,19 @@ const LOCATION_COLORS: Record<string, string> = {
   Congelador: 'bg-cyan-100 text-cyan-700',
 }
 
+// DB dates come as "YYYY-MM-DD" or a full timestamp; keep only the day so the timezone can't shift it
+function toDateInput(dateStr: string | null): string {
+  return dateStr ? dateStr.slice(0, 10) : ''
+}
+
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function daysUntilExpiry(dateStr: string | null): number | null {
   if (!dateStr) return null
-  const diff = new Date(dateStr).getTime() - new Date().setHours(0, 0, 0, 0)
+  const diff = parseLocalDate(dateStr).getTime() - new Date().setHours(0, 0, 0, 0)
   return Math.ceil(diff / 86400000)
 }
 
@@ -105,8 +115,8 @@ export default function InventoryPage() {
       quantity: item.quantity,
       unit: item.unit ?? 'g',
       location: item.location ?? 'Nevera',
-      expiration_date: item.expiration_date ?? '',
-      purchase_date: item.purchase_date ?? '',
+      expiration_date: toDateInput(item.expiration_date),
+      purchase_date: toDateInput(item.purchase_date),
       purchase_price: item.purchase_price ?? '',
     })
     setSelectedProduct(item.product ?? null)
@@ -199,7 +209,7 @@ export default function InventoryPage() {
                   {item.expiration_date && (
                     <div className="flex items-center gap-2">
                       <ExpiryBadge dateStr={item.expiration_date} />
-                      <span className="text-xs text-muted-foreground">{new Date(item.expiration_date).toLocaleDateString('es-ES')}</span>
+                      <span className="text-xs text-muted-foreground">{parseLocalDate(item.expiration_date).toLocaleDateString('es-ES')}</span>
                     </div>
                   )}
                   <div className="flex gap-2 pt-1">

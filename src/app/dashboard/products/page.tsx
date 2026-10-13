@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Plus, Search, Trash2, Edit2, X, ChevronDown, Loader2 } from 'lucide-react'
 
-const PRODUCT_CATEGORIES = ['Frutas', 'Verduras', 'Carnes', 'Lácteos', 'Granos', 'Bebidas', 'Salsas', 'Especias', 'Otros']
+const PRODUCT_CATEGORIES = ['Frutas', 'Verduras', 'Carnes', 'Lácteos', 'Granos', 'Bebidas', 'Salsas', 'Especias', 'Azúcares', 'Harinas', 'Otros']
 const ALLERGEN_LIST = ['Gluten', 'Lácteos', 'Huevos', 'Frutos secos', 'Mariscos', 'Pescado', 'Soja', 'Sésamo']
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud']
 
@@ -24,6 +24,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   Bebidas: 'bg-cyan-100 text-cyan-700',
   Salsas: 'bg-orange-100 text-orange-700',
   Especias: 'bg-yellow-100 text-yellow-700',
+  Azúcares: 'bg-pink-100 text-pink-700',
+  Harinas: 'bg-stone-100 text-stone-700',
   Otros: 'bg-gray-100 text-gray-700',
 }
 
