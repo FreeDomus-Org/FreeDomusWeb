@@ -32,6 +32,7 @@ export default function WorkspacePage() {
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [invitations, setInvitations] = useState<WorkspaceInvitation[]>([])
+  const [invitationsError, setInvitationsError] = useState<string | null>(null)
   const [busyInvitation, setBusyInvitation] = useState<string | null>(null)
 
   const load = useCallback(async (uid: string) => {
@@ -45,7 +46,13 @@ export default function WorkspacePage() {
   }, [])
 
   const loadInvitations = useCallback(async (wsId: string) => {
-    try { setInvitations(await fetchInvitations(wsId)) } catch { setInvitations([]) }
+    try {
+      setInvitations(await fetchInvitations(wsId))
+      setInvitationsError(null)
+    } catch (err) {
+      console.error('fetchInvitations failed', err)
+      setInvitationsError(err instanceof Error ? err.message : 'No se pudieron cargar las invitaciones')
+    }
   }, [])
 
   useEffect(() => {
@@ -102,11 +109,18 @@ export default function WorkspacePage() {
     if (!selected || !inviteEmail.trim()) return
     setInviting(true); setInviteError(null); setInviteSuccess(false)
     try {
-      await inviteMember(selected.id, inviteEmail.trim(), 'member')
+      const email = inviteEmail.trim()
+      const sent = await inviteMember(selected.id, email, 'member')
       setInviteSuccess(true); setInviteEmail('')
+      // Show it right away, then sync with the DB
+      setInvitations(prev => [{
+        id: sent.invitation_id, workspace_id: selected.id, invited_by: userId ?? '', invited_email: email,
+        role: 'member', token: '', status: 'pending', expires_at: sent.expires_at, created_at: new Date().toISOString(),
+      }, ...prev.filter(i => i.id !== sent.invitation_id)])
       loadInvitations(selected.id)
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : 'Error al enviar la invitación')
+      loadInvitations(selected.id)
     } finally { setInviting(false) }
   }
 
@@ -248,7 +262,8 @@ export default function WorkspacePage() {
                     <CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4" /> Invitaciones enviadas</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {invitations.length === 0 ? (
+                    {invitationsError && <p className="text-sm text-destructive">{invitationsError}</p>}
+                    {invitations.length === 0 && !invitationsError ? (
                       <p className="text-sm text-muted-foreground text-center py-2">No hay invitaciones pendientes.</p>
                     ) : invitations.map(inv => {
                       const expired = new Date(inv.expires_at) < new Date()

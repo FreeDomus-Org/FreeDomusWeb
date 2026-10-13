@@ -65,11 +65,23 @@ export async function removeMember(workspaceId: string, userId: string): Promise
   if (error) throw error
 }
 
-export async function inviteMember(workspaceId: string, invitedEmail: string, role: WorkspaceRole): Promise<void> {
-  const { error } = await createClient().functions.invoke('invite-member', {
+export async function inviteMember(
+  workspaceId: string,
+  invitedEmail: string,
+  role: WorkspaceRole,
+): Promise<{ invitation_id: string; expires_at: string }> {
+  const { data, error } = await createClient().functions.invoke('invite-member', {
     body: { workspace_id: workspaceId, invited_email: invitedEmail, role },
   })
-  if (error) throw error
+  if (error) {
+    // FunctionsHttpError hides the real message in the response body
+    const body = await (error as { context?: Response }).context?.json?.().catch(() => null)
+    const msg = body?.error === 'Already invited' ? 'Ya existe una invitación pendiente para este correo.'
+      : body?.error === 'Already a member' ? 'Este usuario ya es miembro del workspace.'
+      : body?.detail ?? body?.error
+    throw new Error(msg ?? error.message)
+  }
+  return data
 }
 
 export async function fetchInvitations(workspaceId: string): Promise<WorkspaceInvitation[]> {
