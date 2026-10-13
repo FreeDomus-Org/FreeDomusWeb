@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/client'
 import type { WeeklyPlanner, WeeklyPlannerCreate } from '@/types'
 
+// day_of_week is stored as text in the DB, so PostgREST returns "1" instead of 1
+const normalize = (e: WeeklyPlanner): WeeklyPlanner => ({ ...e, day_of_week: Number(e.day_of_week) })
+
 export async function fetchWeekPlanner(userId: string, weekStartDate: string, workspaceId?: string | null): Promise<WeeklyPlanner[]> {
   const supabase = createClient()
   let query = supabase.from('weekly_planner').select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)').eq('week_start_date', weekStartDate)
@@ -13,7 +16,7 @@ export async function fetchWeekPlanner(userId: string, weekStartDate: string, wo
 
   const { data, error } = await query
   if (error) throw error
-  return (data ?? []) as WeeklyPlanner[]
+  return ((data ?? []) as WeeklyPlanner[]).map(normalize)
 }
 
 export async function upsertPlannerEntry(entry: WeeklyPlannerCreate): Promise<WeeklyPlanner> {
@@ -23,7 +26,7 @@ export async function upsertPlannerEntry(entry: WeeklyPlannerCreate): Promise<We
     .select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)')
     .single()
   if (error) throw error
-  return data as WeeklyPlanner
+  return normalize(data as WeeklyPlanner)
 }
 
 export async function deletePlannerEntry(id: string): Promise<void> {
