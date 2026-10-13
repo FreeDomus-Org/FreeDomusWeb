@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchInventory, fetchInventoryByLocation, createInventoryItem, updateInventoryItem, deleteInventoryItem } from '@/lib/services/inventory'
+import { fetchInventory, fetchInventoryByLocation, createInventoryItem, updateInventoryItem, deleteInventoryItem, reportDamagedItem } from '@/lib/services/inventory'
 import { searchProducts, createProduct } from '@/lib/services/products'
 import type { Inventory, InventoryCreate, Product } from '@/types'
 import { LOCATIONS, INGREDIENT_UNITS } from '@/types'
@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Plus, Search, Trash2, Edit2, X, ChevronDown, Loader2, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Trash2, Edit2, X, ChevronDown, Loader2, AlertTriangle, PackageX } from 'lucide-react'
 
 const LOCATION_COLORS: Record<string, string> = {
   Nevera: 'bg-blue-100 text-blue-700',
@@ -68,6 +68,9 @@ export default function InventoryPage() {
   const [productResults, setProductResults] = useState<Product[]>([])
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [showProductDropdown, setShowProductDropdown] = useState(false)
+  const [damaged, setDamaged] = useState<Inventory | null>(null)
+  const [damagedQty, setDamagedQty] = useState<string | number>('')
+  const [reportingDamage, setReportingDamage] = useState(false)
 
   const load = useCallback(async (uid: string) => {
     setLoading(true)
@@ -157,6 +160,23 @@ export default function InventoryPage() {
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
+  function openDamaged(item: Inventory) {
+    setDamaged(item); setDamagedQty(item.quantity)
+  }
+
+  async function handleReportDamaged() {
+    const qty = Number(damagedQty)
+    if (!damaged || !(qty > 0)) return
+    setReportingDamage(true)
+    try {
+      const updated = await reportDamagedItem(damaged, Math.min(qty, damaged.quantity))
+      setItems(prev => updated
+        ? prev.map(i => i.id === updated.id ? updated : i)
+        : prev.filter(i => i.id !== damaged.id))
+      setDamaged(null)
+    } finally { setReportingDamage(false) }
+  }
+
   async function handleCreateAndSelectProduct(name: string) {
     if (!userId) return
     const p = await createProduct({ user_id: userId, workspace_id: null, name, brand: null, barcode: null, category: 'Otros', unit: 'g', calories: null, protein: null, carbs: null, fat: null, allergens: [], is_custom: true })
@@ -214,12 +234,38 @@ export default function InventoryPage() {
                   )}
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(item)}><Edit2 className="h-3 w-3 mr-1" /> Editar</Button>
+                    <Button size="sm" variant="outline" title="Marcar como dañado" onClick={() => openDamaged(item)}><PackageX className="h-3 w-3 mr-1" /> Dañado</Button>
                     <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item.id)}><Trash2 className="h-3 w-3" /></Button>
                   </div>
                 </CardContent>
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {damaged && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-background rounded-lg shadow-xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-lg">Producto dañado</h2>
+              <button onClick={() => setDamaged(null)}><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              ¿Cuánto de <span className="font-medium text-foreground">{damaged.product?.name ?? '—'}</span> se dañó? Se descontará del inventario (tienes {damaged.quantity} {damaged.unit}).
+            </p>
+            <div className="space-y-1">
+              <Label>Cantidad dañada ({damaged.unit})</Label>
+              <Input type="number" min={0} max={damaged.quantity} step="0.1" value={damagedQty} onChange={e => setDamagedQty(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setDamaged(null)}>Cancelar</Button>
+              <Button variant="destructive" className="flex-1" onClick={handleReportDamaged} disabled={reportingDamage || !(Number(damagedQty) > 0)}>
+                {reportingDamage && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                Confirmar
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

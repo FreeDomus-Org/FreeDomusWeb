@@ -48,7 +48,7 @@ export default function HistoryPage() {
     try {
       const [histData, recipeData] = await Promise.all([
         mode === 'top' ? fetchTopRated(uid) : fetchHistory(uid),
-        fetchRecipes(uid),
+        fetchRecipes(uid, document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null),
       ])
       setHistory(histData)
       setRecipes(recipeData)

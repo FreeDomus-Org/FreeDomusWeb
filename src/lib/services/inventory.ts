@@ -69,3 +69,13 @@ export async function deleteInventoryItem(id: string): Promise<void> {
   const { error } = await createClient().from('inventory').delete().eq('id', id)
   if (error) throw error
 }
+
+// Removes a damaged quantity from stock; deletes the row when nothing is left
+export async function reportDamagedItem(item: Inventory, damagedQuantity: number): Promise<Inventory | null> {
+  const remaining = Math.round((item.quantity - damagedQuantity) * 1000) / 1000
+  if (remaining <= 0) {
+    await deleteInventoryItem(item.id)
+    return null
+  }
+  return updateInventoryItem(item.id, { quantity: remaining })
+}
