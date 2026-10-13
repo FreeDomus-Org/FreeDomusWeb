@@ -3,7 +3,7 @@ import type { WeeklyPlanner, WeeklyPlannerCreate } from '@/types'
 
 export async function fetchWeekPlanner(userId: string, weekStartDate: string, workspaceId?: string | null): Promise<WeeklyPlanner[]> {
   const supabase = createClient()
-  let query = supabase.from('weekly_planner').select('*, recipe:recipes(*)').eq('week_start_date', weekStartDate)
+  let query = supabase.from('weekly_planner').select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)').eq('week_start_date', weekStartDate)
 
   if (workspaceId) {
     query = query.eq('workspace_id', workspaceId)
@@ -20,7 +20,7 @@ export async function upsertPlannerEntry(entry: WeeklyPlannerCreate): Promise<We
   const { data, error } = await createClient()
     .from('weekly_planner')
     .upsert(entry, { onConflict: 'user_id,week_start_date,day_of_week,meal_type' })
-    .select('*, recipe:recipes(*)')
+    .select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)')
     .single()
   if (error) throw error
   return data as WeeklyPlanner
