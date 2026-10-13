@@ -5,14 +5,14 @@ import { createClient } from '@/lib/supabase/client'
 import { fetchWeekPlanner, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
 import { fetchRecipes } from '@/lib/services/recipes'
 import type { WeeklyPlanner, Recipe } from '@/types'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, X, Loader2 } from 'lucide-react'
+import { PageHeader, IconAction, CenterModal, LoadingState, SearchField } from '@/components/ui/freedomus'
+import { ChevronLeft, ChevronRight, X, Flame } from 'lucide-react'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const MEAL_TYPES = [
-  { key: 'desayuno', label: 'Desayuno', emoji: '🌅', color: 'text-orange-500' },
-  { key: 'almuerzo', label: 'Almuerzo', emoji: '🍽️', color: 'text-green-500' },
-  { key: 'cena', label: 'Cena', emoji: '🌙', color: 'text-indigo-500' },
+  { key: 'desayuno', label: 'Desayuno', dot: 'bg-peach-ink', cell: 'bg-peach text-[#8a3a0c]' },
+  { key: 'almuerzo', label: 'Almuerzo', dot: 'bg-leaf', cell: 'bg-lime text-lime-ink' },
+  { key: 'cena', label: 'Cena', dot: 'bg-lilac-ink', cell: 'bg-lilac text-[#5a3a7d]' },
 ]
 
 function addDays(date: Date, n: number) {
@@ -99,121 +99,105 @@ export default function PlannerPage() {
     if (userId) load(userId, newStart)
   }
 
+  function goToday() {
+    const start = getWeekStart()
+    setWeekStart(start)
+    if (userId) load(userId, start)
+  }
+
   const filteredRecipes = recipes.filter(r => r.name.toLowerCase().includes(pickerSearch.toLowerCase()))
   const kcal = totalCalories(plan)
 
+  const weekEnd = addDays(weekStart, 6)
+  const title = `Semana del ${weekStart.getDate()} de ${weekStart.toLocaleDateString('es-ES', { month: 'long' })}`
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold">Planificador semanal</h1>
-        <div className="flex items-center gap-3">
-          {kcal > 0 && (
-            <span className="text-sm bg-amber-100 text-amber-700 px-3 py-1 rounded-full">🔥 {kcal} kcal / semana</span>
-          )}
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate(-1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronLeft className="h-4 w-4" /></button>
-            <span className="text-sm font-medium min-w-36 text-center">
-              {formatShortDate(weekStart)} – {formatShortDate(addDays(weekStart, 6))}
-            </span>
-            <button onClick={() => navigate(1)} className="p-1.5 rounded-md hover:bg-muted"><ChevronRight className="h-4 w-4" /></button>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-1 flex-col gap-4">
+      <PageHeader title={title} subtitle={`${formatShortDate(weekStart)} – ${formatShortDate(weekEnd)} ${weekEnd.getFullYear()}`}>
+        {kcal > 0 && (
+          <span className="flex items-center gap-1.5 rounded-full bg-butter px-3.5 py-2 text-[13px] font-semibold text-butter-ink"><Flame className="size-4" /> {kcal} kcal / semana</span>
+        )}
+        <button onClick={goToday} className="cursor-pointer rounded-full bg-card px-4 py-[9px] text-[13px] font-semibold hover:bg-card/70">Hoy</button>
+        <IconAction tone="white" onClick={() => navigate(-1)} aria-label="Semana anterior"><ChevronLeft /></IconAction>
+        <IconAction tone="white" onClick={() => navigate(1)} aria-label="Semana siguiente"><ChevronRight /></IconAction>
+      </PageHeader>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          {DAYS.map((dayName, dayIdx) => {
-            const date = addDays(weekStart, dayIdx)
-            const isToday = formatShortDate(date) === formatShortDate(new Date())
-            return (
-              <div key={dayIdx} className={`rounded-xl border p-3 space-y-2 ${isToday ? 'border-primary bg-primary/5' : 'bg-card'}`}>
-                <div className="text-center">
-                  <p className={`text-xs font-semibold uppercase tracking-wide ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>{dayName.slice(0, 3)}</p>
-                  <p className={`text-lg font-bold ${isToday ? 'text-primary' : ''}`}>{date.getDate()}</p>
-                </div>
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
+          <div className="flex min-h-[520px] min-w-[860px] flex-col gap-2.5">
+            <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] gap-2.5">
+              <div />
+              {DAYS.map((dayName, dayIdx) => {
+                const date = addDays(weekStart, dayIdx)
+                const isToday = formatShortDate(date) === formatShortDate(new Date())
+                return (
+                  <div key={dayIdx} className="flex flex-col items-center gap-1 rounded-[18px] bg-card py-2.5">
+                    <p className="text-[11.5px] font-semibold tracking-[0.1em] text-ink-5 uppercase">{dayName.slice(0, 3)}</p>
+                    <p className={`grid size-8 place-items-center rounded-full font-display text-base font-extrabold ${isToday ? 'bg-forest text-lime' : ''}`}>{date.getDate()}</p>
+                  </div>
+                )
+              })}
+            </div>
 
-                <div className="space-y-1.5">
-                  {MEAL_TYPES.map(({ key, label, emoji, color }) => {
-                    const entry = getEntry(dayIdx, key)
-                    return (
-                      <div key={key} className="rounded-lg border bg-background p-2 min-h-[60px] relative group">
-                        <div className="flex items-center gap-1 mb-1">
-                          <span className="text-xs">{emoji}</span>
-                          <span className={`text-xs font-medium ${color}`}>{label}</span>
-                        </div>
-                        {entry ? (
-                          <div className="flex items-start justify-between gap-1">
-                            <button
-                              className="text-xs text-left leading-tight hover:text-primary transition-colors flex-1"
-                              onClick={() => openPicker(dayIdx, key)}
-                            >
-                              {entry.recipe?.name ?? '...'}
-                            </button>
-                            <button onClick={() => handleRemove(entry)} className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => openPicker(dayIdx, key)}
-                            className="w-full text-xs text-muted-foreground hover:text-primary transition-colors text-left"
-                          >
-                            + Añadir
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
+            {MEAL_TYPES.map(({ key, label, dot, cell }) => (
+              <div key={key} className="grid flex-1 grid-cols-[96px_repeat(7,minmax(0,1fr))] gap-2.5">
+                <div className="flex items-center gap-2 font-display text-sm font-bold">
+                  <span className={`size-2.5 rounded-full ${dot}`} />{label}
                 </div>
+                {DAYS.map((_, dayIdx) => {
+                  const entry = getEntry(dayIdx, key)
+                  return entry ? (
+                    <div key={dayIdx} className={`group relative flex min-h-24 rounded-[20px] p-3 text-[13.5px] leading-tight font-semibold ${cell}`}>
+                      <button className="flex-1 cursor-pointer text-left hover:underline" onClick={() => openPicker(dayIdx, key)}>
+                        {entry.recipe?.name ?? '...'}
+                      </button>
+                      <button onClick={() => handleRemove(entry)} aria-label="Quitar"
+                        className="absolute top-2 right-2 grid size-6 cursor-pointer place-items-center rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger">
+                        <X className="size-3 stroke-[2.6]" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button key={dayIdx} onClick={() => openPicker(dayIdx, key)}
+                      className="grid min-h-24 cursor-pointer place-items-center rounded-[20px] border-[1.5px] border-dashed border-[#b9c5b5] text-[13.5px] font-medium text-ink-5 transition-colors hover:bg-white/50">
+                      + Añadir
+                    </button>
+                  )
+                })}
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
       )}
 
       {/* Recipe Picker Modal */}
       {showPicker && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <div>
-                <h2 className="font-semibold">Elegir receta</h2>
-                <p className="text-xs text-muted-foreground">{DAYS[pickerDay]} · {MEAL_TYPES.find(m => m.key === pickerMeal)?.label}</p>
-              </div>
-              <button onClick={() => setShowPicker(false)}><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-3 border-b">
-              <input
-                type="text"
-                value={pickerSearch}
-                onChange={e => setPickerSearch(e.target.value)}
-                placeholder="Buscar receta..."
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                autoFocus
-              />
-            </div>
-            <div className="flex-1 overflow-y-auto p-2">
-              {filteredRecipes.length === 0 ? (
-                <p className="text-center py-8 text-sm text-muted-foreground">No hay recetas disponibles.</p>
-              ) : (
-                filteredRecipes.map(recipe => (
-                  <button key={recipe.id} disabled={saving}
-                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-muted transition-colors flex items-center justify-between gap-3"
-                    onClick={() => handleSelectRecipe(recipe)}>
-                    <div>
-                      <p className="text-sm font-medium">{recipe.name}</p>
-                      <p className="text-xs text-muted-foreground">{recipe.meal_type} · {recipe.difficulty ?? '—'}</p>
-                    </div>
-                    {recipe.total_calories && <span className="text-xs text-muted-foreground shrink-0">{recipe.total_calories} kcal</span>}
-                  </button>
-                ))
-              )}
-            </div>
+        <CenterModal
+          eyebrow="Planificador"
+          title="Elegir receta"
+          subtitle={`${DAYS[pickerDay]} · ${MEAL_TYPES.find(m => m.key === pickerMeal)?.label}`}
+          onClose={() => setShowPicker(false)}
+        >
+          <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
+          <div className="-mx-2 flex flex-col">
+            {filteredRecipes.length === 0 ? (
+              <p className="py-8 text-center text-sm text-ink-5">No hay recetas disponibles.</p>
+            ) : (
+              filteredRecipes.map(recipe => (
+                <button key={recipe.id} disabled={saving}
+                  className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-sage disabled:opacity-50"
+                  onClick={() => handleSelectRecipe(recipe)}>
+                  <div>
+                    <p className="font-display text-[15px] font-bold">{recipe.name}</p>
+                    <p className="text-xs text-ink-5">{recipe.meal_type} · {recipe.difficulty ?? '—'}</p>
+                  </div>
+                  {recipe.total_calories && <span className="shrink-0 rounded-full bg-sage px-2.5 py-0.5 text-xs text-ink-2">{recipe.total_calories} kcal</span>}
+                </button>
+              ))
+            )}
           </div>
-        </div>
+        </CenterModal>
       )}
     </div>
   )

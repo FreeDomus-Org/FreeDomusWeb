@@ -7,26 +7,25 @@ import type { Product, ProductCreate } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Plus, Search, Trash2, Edit2, X, ChevronDown, Loader2 } from 'lucide-react'
+import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, EmptyState, LoadingState } from '@/components/ui/freedomus'
+import { Plus, Trash2, Edit2, Loader2 } from 'lucide-react'
 
 const PRODUCT_CATEGORIES = ['Frutas', 'Verduras', 'Carnes', 'Lácteos', 'Granos', 'Bebidas', 'Salsas', 'Especias', 'Azúcares', 'Harinas', 'Otros']
 const ALLERGEN_LIST = ['Gluten', 'Lácteos', 'Huevos', 'Frutos secos', 'Mariscos', 'Pescado', 'Soja', 'Sésamo']
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud']
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Frutas: 'bg-green-100 text-green-700',
-  Verduras: 'bg-emerald-100 text-emerald-700',
-  Carnes: 'bg-red-100 text-red-700',
-  Lácteos: 'bg-blue-100 text-blue-700',
-  Granos: 'bg-amber-100 text-amber-700',
-  Bebidas: 'bg-cyan-100 text-cyan-700',
-  Salsas: 'bg-orange-100 text-orange-700',
-  Especias: 'bg-yellow-100 text-yellow-700',
-  Azúcares: 'bg-pink-100 text-pink-700',
-  Harinas: 'bg-stone-100 text-stone-700',
-  Otros: 'bg-gray-100 text-gray-700',
+  Frutas: 'bg-peach text-peach-ink',
+  Verduras: 'bg-lime text-lime-ink',
+  Carnes: 'bg-coral text-coral-ink',
+  Lácteos: 'bg-sky text-sky-ink',
+  Granos: 'bg-butter text-butter-ink',
+  Bebidas: 'bg-mint text-mint-ink',
+  Salsas: 'bg-apricot text-apricot-ink',
+  Especias: 'bg-lilac text-lilac-ink',
+  Azúcares: 'bg-[#fde2ef] text-[#a8326e]',
+  Harinas: 'bg-[#f3e8d6] text-[#7a5a2b]',
+  Otros: 'bg-stone text-stone-ink',
 }
 
 const EMPTY_FORM = {
@@ -110,134 +109,115 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Productos</h1>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Nuevo producto</Button>
-      </div>
+    <div className="flex flex-1 flex-col gap-[18px]">
+      <PageHeader title="Productos">
+        <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nuevo producto</Button>
+      </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
+      <ChipRow>
         {['all', ...PRODUCT_CATEGORIES].map(cat => (
-          <button key={cat} onClick={() => setCategoryFilter(cat)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${categoryFilter === cat ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
+          <Chip key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
             {cat === 'all' ? 'Todos' : cat}
-          </button>
+          </Chip>
         ))}
-      </div>
+      </ChipRow>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar productos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-      </div>
+      <SearchField placeholder="Buscar productos..." value={search} onChange={e => setSearch(e.target.value)} />
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground"><p className="text-4xl mb-2">🛍️</p><p>No hay productos.</p></div>
+        <EmptyState>No hay productos.</EmptyState>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map(product => (
-            <Card key={product.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">{product.name}</h3>
-                    {product.brand && <p className="text-xs text-muted-foreground">{product.brand}</p>}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] content-start gap-3">
+          {filtered.map(product => {
+            const tone = CATEGORY_COLORS[product.category] ?? CATEGORY_COLORS.Otros
+            const meta = [
+              product.unit,
+              product.calories != null && `${product.calories} kcal`,
+              product.protein != null && `P:${product.protein}g`,
+              product.carbs != null && `C:${product.carbs}g`,
+              product.fat != null && `G:${product.fat}g`,
+            ].filter(Boolean).join('  ·  ')
+            return (
+              <div key={product.id} className="flex flex-col gap-2.5 rounded-[20px] bg-card p-3.5 shadow-card">
+                <div className="flex items-center gap-3">
+                  <div className={`grid size-[34px] shrink-0 place-items-center rounded-full font-display text-[15px] font-extrabold ${tone}`}>
+                    {product.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${CATEGORY_COLORS[product.category] ?? CATEGORY_COLORS.Otros}`}>{product.category}</span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate font-display text-base font-bold">{product.name}</h3>
+                    {product.brand && <p className="mt-px truncate text-xs text-ink-5">{product.brand}</p>}
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${tone}`}>{product.category}</span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{product.unit}</span>
-                  {product.calories != null && <span>· {product.calories} kcal</span>}
-                  {product.protein != null && <span>· P:{product.protein}g</span>}
-                  {product.carbs != null && <span>· C:{product.carbs}g</span>}
-                  {product.fat != null && <span>· G:{product.fat}g</span>}
-                </div>
+                <p className="min-h-4 text-xs whitespace-pre text-ink-2">{meta}</p>
                 {product.allergens.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {product.allergens.map(a => <Badge key={a} variant="outline" className="text-xs text-orange-600 border-orange-300">{a}</Badge>)}
+                    {product.allergens.map(a => <span key={a} className="rounded-full bg-peach px-2 py-0.5 text-[11px] font-semibold text-peach-ink">{a}</span>)}
                   </div>
                 )}
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(product)}><Edit2 className="h-3 w-3 mr-1" /> Editar</Button>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(product.id)}><Trash2 className="h-3 w-3" /></Button>
+                <div className="mt-auto flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(product)}><Edit2 /> Editar</Button>
+                  <IconAction tone="danger" size="sm" onClick={() => handleDelete(product.id)} aria-label="Eliminar"><Trash2 /></IconAction>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            )
+          })}
         </div>
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-end">
-          <div className="w-full max-w-md bg-background h-full overflow-y-auto shadow-xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10">
-              <h2 className="font-semibold text-lg">{editing ? 'Editar producto' : 'Nuevo producto'}</h2>
-              <button onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-4 space-y-4 flex-1">
-              <div className="space-y-1">
-                <Label>Nombre *</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del producto" />
-              </div>
-              <div className="space-y-1">
-                <Label>Marca</Label>
-                <Input value={form.brand ?? ''} onChange={e => setForm(f => ({ ...f, brand: e.target.value || null }))} placeholder="Marca (opcional)" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Categoría</Label>
-                  <div className="relative">
-                    <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {PRODUCT_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Unidad</Label>
-                  <div className="relative">
-                    <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {UNITS.map(u => <option key={u}>{u}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-              <div>
-                <Label className="mb-2 block">Información nutricional</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {([['calories', 'Calorías'], ['protein', 'Proteínas (g)'], ['carbs', 'Carbohidratos (g)'], ['fat', 'Grasas (g)']] as const).map(([key, label]) => (
-                    <div key={key} className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">{label}</Label>
-                      <Input type="number" min={0} value={form[key] ?? ''} onChange={e => setForm(f => ({ ...f, [key]: +e.target.value || null }))} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Alérgenos</Label>
-                <div className="flex flex-wrap gap-2">
-                  {ALLERGEN_LIST.map(a => (
-                    <button key={a} type="button" onClick={() => toggleAllergen(a)}
-                      className={`px-2 py-1 rounded-md text-xs border transition-colors ${form.allergens.includes(a) ? 'bg-orange-100 text-orange-700 border-orange-300' : 'border-input hover:bg-muted'}`}>
-                      {a}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-background">
-              <Button variant="outline" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                {editing ? 'Guardar cambios' : 'Crear producto'}
-              </Button>
+        <SidePanel
+          eyebrow="Productos"
+          title={editing ? 'Editar producto' : 'Nuevo producto'}
+          onClose={() => setShowForm(false)}
+          footer={<>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button size="lg" className="flex-[1.2]" onClick={handleSave} disabled={saving || !form.name.trim()}>
+              {saving && <Loader2 className="animate-spin" />}
+              {editing ? 'Guardar cambios' : 'Crear producto'}
+            </Button>
+          </>}
+        >
+          <Field label="Nombre *">
+            <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre del producto" />
+          </Field>
+          <Field label="Marca">
+            <Input value={form.brand ?? ''} onChange={e => setForm(f => ({ ...f, brand: e.target.value || null }))} placeholder="Marca (opcional)" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Categoría">
+              <NativeSelect value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                {PRODUCT_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Unidad">
+              <NativeSelect value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
+                {UNITS.map(u => <option key={u}>{u}</option>)}
+              </NativeSelect>
+            </Field>
+          </div>
+          <div className="flex flex-col gap-3 rounded-[20px] bg-canvas p-4">
+            <p className="font-display text-base font-bold">Información nutricional</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              {([['calories', 'Calorías'], ['protein', 'Proteínas (g)'], ['carbs', 'Carbohidratos (g)'], ['fat', 'Grasas (g)']] as const).map(([key, label]) => (
+                <label key={key} className="flex min-w-0 flex-col gap-1.5 text-xs text-ink-3">
+                  {label}
+                  <Input type="number" min={0} className="h-10 rounded-xl bg-card px-3 text-sm" value={form[key] ?? ''} onChange={e => setForm(f => ({ ...f, [key]: +e.target.value || null }))} />
+                </label>
+              ))}
             </div>
           </div>
-        </div>
+          <div className="flex flex-col gap-2.5">
+            <Label>Alérgenos</Label>
+            <div className="flex flex-wrap gap-2">
+              {ALLERGEN_LIST.map(a => (
+                <Chip key={a} tone="soft" active={form.allergens.includes(a)} onClick={() => toggleAllergen(a)}>{a}</Chip>
+              ))}
+            </div>
+          </div>
+        </SidePanel>
       )}
     </div>
   )

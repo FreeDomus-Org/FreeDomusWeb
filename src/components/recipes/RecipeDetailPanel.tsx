@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { checkIngredients, finishRecipe, type IngredientStatus } from '@/lib/services/cookRecipe'
-import { X, CheckCircle2, AlertCircle, XCircle, ShoppingCart, ChefHat, Loader2, RefreshCw } from 'lucide-react'
+import { CheckCircle2, AlertCircle, XCircle, ShoppingCart, ChefHat, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SidePanel, LoadingState } from '@/components/ui/freedomus'
 import type { Recipe } from '@/types'
 
 interface Props {
@@ -15,10 +16,10 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  ok:           { icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50 border-green-200',  label: 'Disponible' },
-  partial:      { icon: AlertCircle,  color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200',  label: 'Insuficiente' },
-  missing:      { icon: XCircle,      color: 'text-red-600',   bg: 'bg-red-50 border-red-200',      label: 'No hay' },
-  incompatible: { icon: AlertCircle,  color: 'text-purple-600',bg: 'bg-purple-50 border-purple-200',label: 'Unidades distintas' },
+  ok:           { icon: CheckCircle2, color: 'text-lime-ink',   bg: 'bg-lime/45',      pill: 'bg-lime text-lime-ink',     label: 'Disponible' },
+  partial:      { icon: AlertCircle,  color: 'text-butter-ink', bg: 'bg-butter/50',    pill: 'bg-butter text-butter-ink', label: 'Insuficiente' },
+  missing:      { icon: XCircle,      color: 'text-danger',     bg: 'bg-danger-soft',  pill: 'bg-card text-danger',       label: 'No hay' },
+  incompatible: { icon: AlertCircle,  color: 'text-lilac-ink',  bg: 'bg-lilac/60',     pill: 'bg-lilac text-lilac-ink',   label: 'Unidades distintas' },
 }
 
 export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose, onFinished }: Props) {
@@ -60,127 +61,114 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
     .map(s => s.trim())
     .filter(Boolean) ?? []
 
+  const sectionTitle = 'mb-3 flex items-center gap-2 font-mono text-xs tracking-[0.08em] text-leaf uppercase'
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex justify-end" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-lg bg-background h-full overflow-y-auto shadow-xl flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10">
-          <div>
-            <h2 className="font-semibold text-lg leading-tight">{recipe.name}</h2>
-            <p className="text-xs text-muted-foreground">{recipe.meal_type} · {recipe.difficulty}</p>
+    <SidePanel
+      wide
+      eyebrow="Receta"
+      title={recipe.name}
+      subtitle={[recipe.meal_type, recipe.difficulty].filter(Boolean).join(' · ')}
+      onClose={onClose}
+      footer={hasLinkedIngredients ? (
+        finished ? (
+          <div className="flex w-full items-center justify-center gap-2 py-2 font-semibold text-leaf">
+            <CheckCircle2 className="h-5 w-5" />
+            ¡Receta terminada! Inventario actualizado.
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-muted"><X className="h-5 w-5" /></button>
+        ) : (
+          <div className="flex w-full flex-col gap-2">
+            {!canCook && (
+              <p className="text-center text-xs text-ink-5">
+                Faltan ingredientes, pero igual puedes marcar la receta como terminada.
+              </p>
+            )}
+            <Button size="lg" className="w-full" onClick={handleFinish} disabled={finishing}>
+              {finishing
+                ? <><Loader2 className="animate-spin" /> Procesando...</>
+                : <><ChefHat /> Terminar receta</>
+              }
+            </Button>
+          </div>
+        )
+      ) : undefined}
+    >
+      {/* Ingredientes con estado de inventario */}
+      <section>
+        <div className="flex items-center justify-between">
+          <h3 className={sectionTitle}>Ingredientes</h3>
+          <button onClick={load} className="mb-3 flex cursor-pointer items-center gap-1 rounded-full bg-sage px-3 py-1 text-xs font-semibold text-ink-3 hover:bg-sage-deep">
+            <RefreshCw className="h-3 w-3" /> Actualizar
+          </button>
         </div>
 
-        <div className="flex-1 p-4 space-y-6">
-          {/* Ingredientes con estado de inventario */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Ingredientes</h3>
-              <button onClick={load} className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground">
-                <RefreshCw className="h-3 w-3" /> Actualizar
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-            ) : !hasLinkedIngredients ? (
-              <div className="text-center py-6 border-2 border-dashed rounded-xl text-muted-foreground text-sm">
-                <p>Esta receta no tiene ingredientes vinculados al inventario.</p>
-                <p className="text-xs mt-1">Edita la receta y selecciona productos del catálogo.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {statuses.map(({ ingredient, availableDisplay, neededDisplay, status }) => {
-                  const cfg = STATUS_CONFIG[status]
-                  const Icon = cfg.icon
-                  return (
-                    <div key={ingredient.id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${cfg.bg}`}>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Icon className={`h-4 w-4 shrink-0 ${cfg.color}`} />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{ingredient.product?.name ?? 'Producto'}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Necesitas: {neededDisplay}
-                            {status !== 'ok' && status !== 'missing' && (
-                              <span className="ml-1">· Tienes: {availableDisplay}</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <span className={`text-xs font-medium shrink-0 ${cfg.color}`}>{cfg.label}</span>
+        {loading ? (
+          <LoadingState className="py-8" />
+        ) : !hasLinkedIngredients ? (
+          <div className="rounded-[20px] border-2 border-dashed border-[#b9c5b5] px-4 py-6 text-center text-sm text-ink-5">
+            <p>Esta receta no tiene ingredientes vinculados al inventario.</p>
+            <p className="mt-1 text-xs">Edita la receta y selecciona productos del catálogo.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {statuses.map(({ ingredient, availableDisplay, neededDisplay, status }) => {
+              const cfg = STATUS_CONFIG[status]
+              const Icon = cfg.icon
+              return (
+                <div key={ingredient.id} className={`flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3 ${cfg.bg}`}>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Icon className={`h-4 w-4 shrink-0 ${cfg.color}`} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{ingredient.product?.name ?? 'Producto'}</p>
+                      <p className="text-xs text-ink-2">
+                        Necesitas: {neededDisplay}
+                        {status !== 'ok' && status !== 'missing' && (
+                          <span className="ml-1">· Tienes: {availableDisplay}</span>
+                        )}
+                      </p>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Lista de compras */}
-          {toShop.length > 0 && (
-            <section>
-              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" /> Ingredientes a comprar
-              </h3>
-              <div className="rounded-xl border bg-card divide-y">
-                {toShop.map(({ ingredient, missingDisplay, status }) => (
-                  <div key={ingredient.id} className="flex items-center justify-between px-3 py-2.5 gap-3">
-                    <p className="text-sm font-medium">{ingredient.product?.name ?? 'Producto'}</p>
-                    <span className="text-sm text-muted-foreground shrink-0">
-                      {status === 'incompatible' ? 'revisar unidades' : missingDisplay}
-                    </span>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Pasos */}
-          {steps.length > 0 && (
-            <section>
-              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-3">Preparación</h3>
-              <ol className="space-y-2">
-                {steps.map((step, i) => (
-                  <li key={i} className="flex gap-3 text-sm">
-                    <span className="text-muted-foreground font-mono shrink-0 mt-0.5">{i + 1}.</span>
-                    <span>{step.replace(/^\d+\.\s*/, '')}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
-        </div>
-
-        {/* Footer: Terminar receta */}
-        {hasLinkedIngredients && (
-          <div className="p-4 border-t sticky bottom-0 bg-background">
-            {finished ? (
-              <div className="flex items-center justify-center gap-2 text-green-600 py-2">
-                <CheckCircle2 className="h-5 w-5" />
-                <span className="font-medium">¡Receta terminada! Inventario actualizado.</span>
-              </div>
-            ) : (
-              <>
-                {!canCook && (
-                  <p className="text-xs text-muted-foreground text-center mb-2">
-                    Faltan ingredientes, pero igual puedes marcar la receta como terminada.
-                  </p>
-                )}
-                <Button
-                  className="w-full"
-                  onClick={handleFinish}
-                  disabled={finishing}
-                >
-                  {finishing
-                    ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Procesando...</>
-                    : <><ChefHat className="h-4 w-4 mr-2" /> Terminar receta</>
-                  }
-                </Button>
-              </>
-            )}
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${cfg.pill}`}>{cfg.label}</span>
+                </div>
+              )
+            })}
           </div>
         )}
-      </div>
-    </div>
+      </section>
+
+      {/* Lista de compras */}
+      {toShop.length > 0 && (
+        <section>
+          <h3 className={sectionTitle}>
+            <ShoppingCart className="h-4 w-4" /> Ingredientes a comprar
+          </h3>
+          <div className="divide-y divide-card rounded-[20px] bg-canvas">
+            {toShop.map(({ ingredient, missingDisplay, status }) => (
+              <div key={ingredient.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <p className="text-sm font-semibold">{ingredient.product?.name ?? 'Producto'}</p>
+                <span className="shrink-0 text-sm text-ink-2">
+                  {status === 'incompatible' ? 'revisar unidades' : missingDisplay}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Pasos */}
+      {steps.length > 0 && (
+        <section>
+          <h3 className={sectionTitle}>Preparación</h3>
+          <ol className="flex flex-col gap-2.5">
+            {steps.map((step, i) => (
+              <li key={i} className="flex items-start gap-3 text-sm leading-snug">
+                <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</span>
+                <span className="pt-[3px]">{step.replace(/^\d+\.\s*/, '')}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+    </SidePanel>
   )
 }

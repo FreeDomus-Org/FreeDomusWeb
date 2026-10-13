@@ -13,14 +13,13 @@ import {
   Archive,
   Calendar,
   Clock,
-  CheckSquare,
+  // CheckSquare, // Tareas oculto temporalmente
   Settings,
   LogOut,
   Users,
   Menu,
   X,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
 const navItems = [
   { href: '/dashboard', label: 'Inicio', icon: Home },
@@ -29,8 +28,9 @@ const navItems = [
   { href: '/dashboard/inventory', label: 'Inventario', icon: Archive },
   { href: '/dashboard/planner', label: 'Planificador', icon: Calendar },
   { href: '/dashboard/history', label: 'Historial', icon: Clock },
-  { href: '/dashboard/tasks', label: 'Tareas', icon: CheckSquare },
-  { href: '/dashboard/workspace', label: 'Workspace', icon: Users },
+  // Tareas oculto temporalmente: falta la tabla household_tasks en Supabase
+  // { href: '/dashboard/tasks', label: 'Tareas', icon: CheckSquare },
+  { href: '/dashboard/workspace', label: 'Espacio de trabajo', icon: Users },
 ]
 
 interface SidebarProps {
@@ -49,21 +49,26 @@ export default function Sidebar({ user }: SidebarProps) {
     router.refresh()
   }
 
+  const initial = (user.email ?? '?').charAt(0).toUpperCase()
+  const settingsActive = pathname.startsWith('/dashboard/settings')
+
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="p-6 border-b flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🏠</span>
-          <span className="font-bold text-lg">FreeDomus</span>
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-2.5 font-display text-[21px] font-extrabold">
+          <div className="grid size-[34px] place-items-center rounded-full bg-lime">
+            <Home className="size-[18px] stroke-[2.2] text-forest" />
+          </div>
+          FreeDomus
         </div>
-        <button className="md:hidden" onClick={() => setOpen(false)}>
-          <X className="h-5 w-5 text-muted-foreground" />
+        <button className="md:hidden" onClick={() => setOpen(false)} aria-label="Cerrar menú">
+          <X className="h-5 w-5 text-ink-5" />
         </button>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = href === '/dashboard' ? pathname === href : pathname.startsWith(href)
           return (
@@ -72,13 +77,11 @@ export default function Sidebar({ user }: SidebarProps) {
               href={href}
               onClick={() => setOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                'flex items-center gap-3 rounded-[14px] px-3 py-[11px] text-[14.5px] font-medium transition-colors',
+                active ? 'bg-forest text-lime' : 'text-ink-3 hover:bg-sage hover:text-forest'
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className="size-[18px] shrink-0 stroke-[1.9]" />
               {label}
             </Link>
           )
@@ -86,25 +89,24 @@ export default function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t space-y-2">
-        <Link
-          href="/dashboard/settings"
-          onClick={() => setOpen(false)}
-          className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            pathname.startsWith('/dashboard/settings')
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <Settings className="h-4 w-4" />
-          Configuración
+      <div className={cn('flex items-center gap-2.5 rounded-2xl p-3', settingsActive ? 'bg-forest text-lime' : 'bg-sage')}>
+        <Link href="/dashboard/settings" onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div className={cn('grid size-[34px] shrink-0 place-items-center rounded-full font-bold', settingsActive ? 'bg-lime text-forest' : 'bg-forest text-lime')}>
+            {initial}
+          </div>
+          <div className="min-w-0 text-xs leading-[1.35]">
+            <p className="flex items-center gap-1 font-semibold"><Settings className="size-3" /> Configuración</p>
+            <p className={cn('truncate', settingsActive ? 'text-lime/70' : 'text-ink-5')}>{user.email}</p>
+          </div>
         </Link>
-        <div className="px-3 py-1 text-xs text-muted-foreground truncate">{user.email}</div>
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
-          Cerrar sesión
-        </Button>
+        <button
+          onClick={handleLogout}
+          title="Cerrar sesión"
+          aria-label="Cerrar sesión"
+          className={cn('grid size-8 shrink-0 cursor-pointer place-items-center rounded-full transition-colors', settingsActive ? 'hover:bg-white/10' : 'text-ink-3 hover:bg-danger-soft hover:text-danger')}
+        >
+          <LogOut className="size-4" />
+        </button>
       </div>
     </>
   )
@@ -113,8 +115,9 @@ export default function Sidebar({ user }: SidebarProps) {
     <>
       {/* Botón hamburguesa — solo mobile */}
       <button
-        className="md:hidden fixed top-4 left-4 z-50 bg-card border rounded-lg p-2 shadow-sm"
+        className="fixed top-4 left-4 z-40 rounded-full bg-card p-2.5 shadow-panel md:hidden"
         onClick={() => setOpen(true)}
+        aria-label="Abrir menú"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -122,20 +125,20 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Overlay — solo mobile cuando está abierto */}
       {open && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 z-40 bg-forest/45 md:hidden"
           onClick={() => setOpen(false)}
         />
       )}
 
       {/* Sidebar desktop */}
-      <aside className="hidden md:flex w-64 border-r bg-card flex-col h-full shrink-0">
+      <aside className="hidden w-[232px] shrink-0 flex-col gap-[22px] overflow-hidden rounded-3xl bg-card px-3.5 py-[22px] shadow-panel md:flex">
         {sidebarContent}
       </aside>
 
       {/* Sidebar mobile (drawer) */}
       <aside
         className={cn(
-          'md:hidden fixed inset-y-0 left-0 z-50 w-64 bg-card flex flex-col h-full transition-transform duration-300',
+          'fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col gap-[22px] rounded-r-3xl bg-card px-3.5 py-[22px] shadow-panel transition-transform duration-300 md:hidden',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >

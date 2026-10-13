@@ -20,25 +20,27 @@ export default async function SelectWorkspacePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12">
       {/* Logo */}
-      <div className="flex items-center gap-3 mb-12">
-        <span className="text-4xl">🏠</span>
-        <span className="text-2xl font-bold tracking-tight">FreeDomus</span>
+      <div className="mb-12 flex items-center gap-3 font-display text-2xl font-extrabold">
+        <div className="grid size-11 place-items-center rounded-full bg-lime">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17251c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+        </div>
+        FreeDomus
       </div>
 
       <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold mb-2">¿A qué hogar entras hoy?</h1>
-          <p className="text-muted-foreground text-sm">Selecciona un workspace para continuar</p>
+          <h1 className="mb-2 font-display text-[32px] font-extrabold tracking-[-0.02em] sm:text-[40px]">¿A qué hogar entras hoy?</h1>
+          <p className="text-muted-foreground text-sm">Selecciona un espacio de trabajo para continuar</p>
         </div>
 
         {workspaces.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-2xl text-center">
+          <div className="flex flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-[#b9c5b5] py-20 text-center">
             <div className="text-5xl mb-4">🏡</div>
-            <h2 className="text-lg font-semibold mb-1">Aún no tienes ningún hogar</h2>
-            <p className="text-sm text-muted-foreground mb-6">Crea tu primer workspace para empezar</p>
+            <h2 className="mb-1 font-display text-xl font-bold">Aún no tienes ningún hogar</h2>
+            <p className="text-sm text-muted-foreground mb-6">Crea tu primer espacio de trabajo para empezar</p>
             <Link href="/dashboard/workspace" className={buttonVariants()}>
               <Plus className="h-4 w-4 mr-2" />
-              Crear workspace
+              Crear espacio de trabajo
             </Link>
           </div>
         ) : (
@@ -47,26 +49,26 @@ export default async function SelectWorkspacePage() {
               <form key={ws.id} action={selectWorkspaceAction.bind(null, ws.id)}>
                 <button
                   type="submit"
-                  className="group w-full text-left flex items-center gap-4 rounded-2xl border bg-card hover:border-primary hover:shadow-md transition-all duration-200 p-5"
+                  className="group flex w-full cursor-pointer items-center gap-4 rounded-3xl bg-card p-5 text-left shadow-card transition-all duration-200 hover:bg-forest hover:text-[#f3f7ec]"
                 >
-                  <span className="text-4xl shrink-0">{ws.icon ?? '🏠'}</span>
+                  <span className="grid size-14 shrink-0 place-items-center rounded-full bg-lime text-3xl">{ws.icon ?? '🏠'}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-base">{ws.name}</p>
+                    <p className="font-display text-xl font-bold">{ws.name}</p>
                     <Badge variant="secondary" className="mt-1 text-xs">
                       {ws.owner_id === user!.id ? '👑 Propietario' : '👥 Miembro'}
                     </Badge>
                   </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                  <ChevronRight className="h-5 w-5 shrink-0 text-ink-5 transition-colors group-hover:text-lime" />
                 </button>
               </form>
             ))}
 
             <Link
               href="/dashboard/workspace"
-              className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-5 text-muted-foreground hover:border-primary hover:text-primary transition-all duration-200"
+              className="flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-[#b9c5b5] p-5 text-ink-5 transition-all duration-200 hover:border-forest hover:text-forest"
             >
               <Plus className="h-5 w-5" />
-              <span className="text-sm font-medium">Crear nuevo workspace</span>
+              <span className="text-sm font-medium">Crear nuevo espacio de trabajo</span>
             </Link>
           </div>
         )}

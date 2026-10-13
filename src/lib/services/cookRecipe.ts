@@ -61,6 +61,12 @@ function humanize(base: number, unit: string): string {
   return `${Math.round(base * 100) / 100} ${unit}`
 }
 
+// Workspace inventory plus the user's personal items (the Inventario page saves those),
+// same scope as recipes and history
+function inventoryScope(userId: string, workspaceId: string) {
+  return `workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`
+}
+
 // ─── Verificar disponibilidad ─────────────────────────────────────────────────
 
 export async function checkIngredients(
@@ -79,7 +85,7 @@ export async function checkIngredients(
 
   let invQuery = supabase.from('inventory').select('*, product:products(*)')
   if (workspaceId) {
-    invQuery = invQuery.eq('workspace_id', workspaceId)
+    invQuery = invQuery.or(inventoryScope(userId, workspaceId))
   } else {
     invQuery = invQuery.eq('user_id', userId).is('workspace_id', null)
   }
@@ -126,6 +132,24 @@ export async function checkIngredients(
 export async function finishRecipe(
   recipeId: string,
   userId: string,
+  workspaceId: string | null,
+  actualMinutes: number | null = null
+): Promise<void> {
+  await deductFromInventory(recipeId, userId, workspaceId)
+
+  const { error } = await createClient().from('cooking_history').insert({
+    user_id: userId,
+    workspace_id: workspaceId,
+    recipe_id: recipeId,
+    cooked_at: new Date().toISOString(),
+    actual_time_minutes: actualMinutes,
+  })
+  if (error) throw error
+}
+
+async function deductFromInventory(
+  recipeId: string,
+  userId: string,
   workspaceId: string | null
 ): Promise<void> {
   const supabase = createClient()
@@ -139,7 +163,7 @@ export async function finishRecipe(
 
   let invQuery = supabase.from('inventory').select('*')
   if (workspaceId) {
-    invQuery = invQuery.eq('workspace_id', workspaceId)
+    invQuery = invQuery.or(inventoryScope(userId, workspaceId))
   } else {
     invQuery = invQuery.eq('user_id', userId).is('workspace_id', null)
   }
@@ -175,11 +199,4 @@ export async function finishRecipe(
       }
     }
   }
-
-  await supabase.from('cooking_history').insert({
-    user_id: userId,
-    workspace_id: workspaceId,
-    recipe_id: recipeId,
-    cooked_at: new Date().toISOString(),
-  })
 }

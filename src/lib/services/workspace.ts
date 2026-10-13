@@ -77,7 +77,7 @@ export async function inviteMember(
     // FunctionsHttpError hides the real message in the response body
     const body = await (error as { context?: Response }).context?.json?.().catch(() => null)
     const msg = body?.error === 'Already invited' ? 'Ya existe una invitación pendiente para este correo.'
-      : body?.error === 'Already a member' ? 'Este usuario ya es miembro del workspace.'
+      : body?.error === 'Already a member' ? 'Este usuario ya es miembro del espacio de trabajo.'
       : body?.detail ?? body?.error
     throw new Error(msg ?? error.message)
   }

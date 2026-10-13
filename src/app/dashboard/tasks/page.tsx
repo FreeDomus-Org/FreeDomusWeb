@@ -6,29 +6,28 @@ import { fetchTasks, createTask, updateTask, updateTaskStatus, deleteTask } from
 import type { HouseholdTask, HouseholdTaskCreate, TaskStatus, TaskCategory, TaskPriority } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
-import { Plus, Trash2, Edit2, X, ChevronDown, Loader2, Circle, Clock, CheckCircle2 } from 'lucide-react'
+import { PageHeader, Chip, ChipRow, Field, NativeSelect, TextArea, IconAction, SidePanel, EmptyState, LoadingState, StatTile } from '@/components/ui/freedomus'
+import { Plus, Trash2, Edit2, Loader2, Circle, Clock, CheckCircle2, CalendarDays, Timer } from 'lucide-react'
 
 const CATEGORIES: { key: TaskCategory; label: string; color: string }[] = [
-  { key: 'limpieza', label: 'Limpieza', color: 'text-red-500' },
-  { key: 'cocina', label: 'Cocina', color: 'text-orange-500' },
-  { key: 'compras', label: 'Compras', color: 'text-blue-500' },
-  { key: 'mantenimiento', label: 'Mantenimiento', color: 'text-purple-500' },
-  { key: 'jardineria', label: 'Jardinería', color: 'text-green-500' },
-  { key: 'otro', label: 'Otro', color: 'text-gray-500' },
+  { key: 'limpieza', label: 'Limpieza', color: 'bg-coral text-coral-ink' },
+  { key: 'cocina', label: 'Cocina', color: 'bg-peach text-peach-ink' },
+  { key: 'compras', label: 'Compras', color: 'bg-sky text-sky-ink' },
+  { key: 'mantenimiento', label: 'Mantenimiento', color: 'bg-lilac text-lilac-ink' },
+  { key: 'jardineria', label: 'Jardinería', color: 'bg-lime text-lime-ink' },
+  { key: 'otro', label: 'Otro', color: 'bg-stone text-stone-ink' },
 ]
 
 const PRIORITIES: { key: TaskPriority; label: string; color: string }[] = [
-  { key: 'baja', label: 'Baja', color: 'text-green-500' },
-  { key: 'media', label: 'Media', color: 'text-amber-500' },
-  { key: 'alta', label: 'Alta', color: 'text-red-500' },
+  { key: 'baja', label: 'Baja', color: 'bg-mint text-mint-ink' },
+  { key: 'media', label: 'Media', color: 'bg-butter text-butter-ink' },
+  { key: 'alta', label: 'Alta', color: 'bg-danger-soft text-danger' },
 ]
 
 const STATUSES: { key: TaskStatus; label: string; Icon: React.ElementType; color: string }[] = [
-  { key: 'pendiente', label: 'Pendiente', Icon: Circle, color: 'text-muted-foreground' },
-  { key: 'en_progreso', label: 'En progreso', Icon: Clock, color: 'text-blue-500' },
-  { key: 'completada', label: 'Completada', Icon: CheckCircle2, color: 'text-green-500' },
+  { key: 'pendiente', label: 'Pendiente', Icon: Circle, color: 'bg-sage text-ink-5' },
+  { key: 'en_progreso', label: 'En progreso', Icon: Clock, color: 'bg-sky text-sky-ink' },
+  { key: 'completada', label: 'Completada', Icon: CheckCircle2, color: 'bg-lime text-lime-ink' },
 ]
 
 function nextStatus(s: TaskStatus): TaskStatus {
@@ -141,171 +140,125 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tareas del hogar</h1>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Nueva tarea</Button>
-      </div>
+    <div className="flex flex-1 flex-col gap-[18px]">
+      <PageHeader title="Tareas del hogar">
+        <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nueva tarea</Button>
+      </PageHeader>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Pendientes', count: pending, color: 'text-muted-foreground' },
-          { label: 'En progreso', count: inProgress, color: 'text-blue-500' },
-          { label: 'Completadas', count: completed, color: 'text-green-500' },
-        ].map(({ label, count, color }) => (
-          <Card key={label}><CardContent className="p-4 text-center">
-            <p className={`text-2xl font-bold ${color}`}>{count}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
-          </CardContent></Card>
-        ))}
+      <div className="grid max-w-[560px] grid-cols-3 gap-3">
+        <StatTile value={pending} label="Pendientes" />
+        <StatTile value={inProgress} label="En progreso" tone="sky" />
+        <StatTile value={completed} label="Completadas" tone="lime" />
       </div>
 
       {/* Filters */}
-      <div className="space-y-2">
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${statusFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-            Todos
-          </button>
+      <div className="flex flex-col gap-2">
+        <ChipRow>
+          <Chip active={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>Todos</Chip>
           {STATUSES.map(({ key, label }) => (
-            <button key={key} onClick={() => setStatusFilter(key)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${statusFilter === key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-              {label}
-            </button>
+            <Chip key={key} active={statusFilter === key} onClick={() => setStatusFilter(key)}>{label}</Chip>
           ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setCategoryFilter('all')}
-            className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === 'all' ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-            Todas
-          </button>
+        </ChipRow>
+        <ChipRow>
+          <Chip className="px-3 py-1 text-xs" active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>Todas</Chip>
           {CATEGORIES.map(({ key, label }) => (
-            <button key={key} onClick={() => setCategoryFilter(key)}
-              className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${categoryFilter === key ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-              {label}
-            </button>
+            <Chip key={key} className="px-3 py-1 text-xs" active={categoryFilter === key} onClick={() => setCategoryFilter(key)}>{label}</Chip>
           ))}
-        </div>
+        </ChipRow>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground"><p className="text-4xl mb-2">✅</p><p>No hay tareas.</p></div>
+        <EmptyState>No hay tareas.</EmptyState>
       ) : (
-        <div className="space-y-2">
+        <div className="flex flex-col gap-3">
           {filtered.map(task => {
             const statusInfo = STATUSES.find(s => s.key === task.status)!
             const catInfo = CATEGORIES.find(c => c.key === task.category)!
             const priorityInfo = PRIORITIES.find(p => p.key === task.priority)!
+            const done = task.status === 'completada'
             return (
-              <Card key={task.id} className={`hover:shadow-sm transition-shadow ${task.status === 'completada' ? 'opacity-60' : ''}`}>
-                <CardContent className="p-4 flex items-start gap-3">
-                  <button onClick={() => handleToggleStatus(task)} className="mt-0.5 shrink-0">
-                    <statusInfo.Icon className={`h-5 w-5 ${statusInfo.color}`} />
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-medium ${task.status === 'completada' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</p>
-                    {task.description && <p className="text-xs text-muted-foreground mt-0.5">{task.description}</p>}
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
-                      <span className={`font-medium ${catInfo.color}`}>{catInfo.label}</span>
-                      <span className={`font-medium ${priorityInfo.color}`}>{priorityInfo.label}</span>
-                      {task.due_date && <span className="text-muted-foreground">📅 {new Date(task.due_date).toLocaleDateString('es-ES')}</span>}
-                      {task.scheduled_date && <span className="text-muted-foreground">🕐 {new Date(task.scheduled_date).toLocaleDateString('es-ES')}{task.scheduled_time ? ` ${task.scheduled_time}` : ''}</span>}
-                      {task.estimated_minutes && <span className="text-muted-foreground">⏱ {task.estimated_minutes}m</span>}
-                    </div>
+              <div key={task.id} className={`flex items-center gap-4 rounded-3xl bg-card py-4 pr-5 pl-4 shadow-card transition-opacity ${done ? 'opacity-60' : ''}`}>
+                <button onClick={() => handleToggleStatus(task)} title={`Estado: ${statusInfo.label}`}
+                  className={`grid size-12 shrink-0 cursor-pointer place-items-center rounded-[16px] ${statusInfo.color}`}>
+                  <statusInfo.Icon className="size-5" />
+                </button>
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <p className={`font-display text-lg font-bold ${done ? 'text-ink-5 line-through' : ''}`}>{task.title}</p>
+                  {task.description && <p className="text-[13px] text-ink-5">{task.description}</p>}
+                  <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                    <span className={`rounded-full px-2.5 py-0.5 font-semibold ${catInfo.color}`}>{catInfo.label}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 font-semibold ${priorityInfo.color}`}>{priorityInfo.label}</span>
+                    {task.due_date && <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5 text-ink-2"><CalendarDays className="size-3" />{new Date(task.due_date).toLocaleDateString('es-ES')}</span>}
+                    {task.scheduled_date && <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5 text-ink-2"><Clock className="size-3" />{new Date(task.scheduled_date).toLocaleDateString('es-ES')}{task.scheduled_time ? ` ${task.scheduled_time}` : ''}</span>}
+                    {task.estimated_minutes && <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5 text-ink-2"><Timer className="size-3" />{task.estimated_minutes}m</span>}
                   </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(task)}><Edit2 className="h-3.5 w-3.5" /></Button>
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(task.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <IconAction size="lg" onClick={() => openEdit(task)} aria-label="Editar"><Edit2 /></IconAction>
+                  <IconAction size="lg" tone="danger" onClick={() => handleDelete(task.id)} aria-label="Eliminar"><Trash2 /></IconAction>
+                </div>
+              </div>
             )
           })}
         </div>
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-end">
-          <div className="w-full max-w-md bg-background h-full overflow-y-auto shadow-xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10">
-              <h2 className="font-semibold text-lg">{editing ? 'Editar tarea' : 'Nueva tarea'}</h2>
-              <button onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-4 space-y-4 flex-1">
-              <div className="space-y-1">
-                <Label>Título *</Label>
-                <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nombre de la tarea" />
-              </div>
-              <div className="space-y-1">
-                <Label>Descripción</Label>
-                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[70px] resize-none" placeholder="Opcional" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Categoría</Label>
-                  <div className="relative">
-                    <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as TaskCategory }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Prioridad</Label>
-                  <div className="relative">
-                    <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as TaskPriority }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              </div>
-              {editing && (
-                <div className="space-y-1">
-                  <Label>Estado</Label>
-                  <div className="relative">
-                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as TaskStatus }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Fecha límite</Label>
-                  <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Fecha programada</Label>
-                  <Input type="date" value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Hora programada</Label>
-                  <Input type="time" value={form.scheduled_time} onChange={e => setForm(f => ({ ...f, scheduled_time: e.target.value }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Duración estimada (min)</Label>
-                  <Input type="number" min={0} value={form.estimated_minutes ?? ''} onChange={e => setForm(f => ({ ...f, estimated_minutes: +e.target.value || null }))} />
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-background">
-              <Button variant="outline" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving || !form.title.trim()}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                {editing ? 'Guardar cambios' : 'Crear tarea'}
-              </Button>
-            </div>
+        <SidePanel
+          eyebrow="Tareas"
+          title={editing ? 'Editar tarea' : 'Nueva tarea'}
+          onClose={() => setShowForm(false)}
+          footer={<>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button size="lg" className="flex-[1.2]" onClick={handleSave} disabled={saving || !form.title.trim()}>
+              {saving && <Loader2 className="animate-spin" />}
+              {editing ? 'Guardar cambios' : 'Crear tarea'}
+            </Button>
+          </>}
+        >
+          <Field label="Título *">
+            <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nombre de la tarea" />
+          </Field>
+          <Field label="Descripción">
+            <TextArea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="min-h-[80px]" placeholder="Opcional" />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Categoría">
+              <NativeSelect value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as TaskCategory }))}>
+                {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Prioridad">
+              <NativeSelect value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value as TaskPriority }))}>
+                {PRIORITIES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </NativeSelect>
+            </Field>
           </div>
-        </div>
+          {editing && (
+            <Field label="Estado">
+              <NativeSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as TaskStatus }))}>
+                {STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </NativeSelect>
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Fecha límite">
+              <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
+            </Field>
+            <Field label="Fecha programada">
+              <Input type="date" value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} />
+            </Field>
+            <Field label="Hora programada">
+              <Input type="time" value={form.scheduled_time} onChange={e => setForm(f => ({ ...f, scheduled_time: e.target.value }))} />
+            </Field>
+            <Field label="Duración estimada (min)">
+              <Input type="number" min={0} value={form.estimated_minutes ?? ''} onChange={e => setForm(f => ({ ...f, estimated_minutes: +e.target.value || null }))} />
+            </Field>
+          </div>
+        </SidePanel>
       )}
     </div>
   )

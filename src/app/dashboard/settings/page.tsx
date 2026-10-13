@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { CURRENCIES } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { ChevronDown, LogOut, User } from 'lucide-react'
+import { PageHeader, Field, NativeSelect } from '@/components/ui/freedomus'
+import { LogOut, User, SlidersHorizontal, Info, KeyRound } from 'lucide-react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export default function SettingsPage() {
@@ -43,59 +43,47 @@ export default function SettingsPage() {
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h1 className="text-2xl font-bold">Configuración</h1>
+    <div className="flex max-w-xl flex-col gap-4">
+      <PageHeader title="Configuración" />
 
       {/* Account */}
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><User className="h-4 w-4" /> Cuenta</CardTitle></CardHeader>
-        <CardContent className="space-y-2">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Email</p>
-            <p className="font-medium">{user?.email ?? '—'}</p>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><User className="size-[18px]" /> Cuenta</CardTitle></CardHeader>
+        <CardContent className="flex items-center gap-3.5">
+          <div className="grid size-12 shrink-0 place-items-center rounded-full bg-forest font-display text-lg font-bold text-lime">
+            {(user?.email ?? '?').charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Rol</p>
-            <p className="text-sm">Usuario registrado</p>
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-semibold">{user?.email ?? '—'}</p>
+            <p className="text-[13px] text-ink-5">Usuario registrado</p>
           </div>
         </CardContent>
       </Card>
 
       {/* Preferences */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Preferencias</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Moneda</Label>
-            <div className="relative max-w-xs">
-              <select
-                value={currency}
-                onChange={e => handleCurrencyChange(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-              >
-                {CURRENCIES.map(c => (
-                  <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            </div>
-            {selectedCurrency && (
-              <p className="text-xs text-muted-foreground">Símbolo: {selectedCurrency.symbol}</p>
-            )}
-          </div>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><SlidersHorizontal className="size-[18px]" /> Preferencias</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Field label="Moneda" hint={selectedCurrency && `Símbolo: ${selectedCurrency.symbol}`} className="max-w-xs">
+            <NativeSelect value={currency} onChange={e => handleCurrencyChange(e.target.value)}>
+              {CURRENCIES.map(c => (
+                <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>
+              ))}
+            </NativeSelect>
+          </Field>
           <div className="flex items-center gap-3">
-            <Button onClick={handleSave} disabled={saving} size="sm">
+            <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Guardando...' : 'Guardar preferencias'}
             </Button>
-            {saved && <span className="text-sm text-green-600">✓ Guardado</span>}
+            {saved && <span className="text-sm font-medium text-leaf">✓ Guardado</span>}
           </div>
         </CardContent>
       </Card>
 
       {/* App info */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Aplicación</CardTitle></CardHeader>
-        <CardContent className="space-y-1 text-sm text-muted-foreground">
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><Info className="size-[18px]" /> Aplicación</CardTitle></CardHeader>
+        <CardContent className="space-y-1 text-sm text-ink-5">
           <p>FreeDomus v1.0</p>
           <p>Plataforma: Web</p>
         </CardContent>
@@ -103,10 +91,10 @@ export default function SettingsPage() {
 
       {/* Session */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Sesión</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><KeyRound className="size-[18px]" /> Sesión</CardTitle></CardHeader>
         <CardContent>
-          <Button variant="destructive" onClick={handleLogout} className="flex items-center gap-2">
-            <LogOut className="h-4 w-4" /> Cerrar sesión
+          <Button variant="destructive" onClick={handleLogout}>
+            <LogOut /> Cerrar sesión
           </Button>
         </CardContent>
       </Card>

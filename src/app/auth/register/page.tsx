@@ -60,18 +60,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-orange-50 to-amber-50 p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-canvas p-4">
+      <div className="stripes pointer-events-none absolute -top-24 -right-24 size-80 rounded-full opacity-90" />
+      <div className="pointer-events-none absolute -bottom-20 -left-20 size-64 rounded-full bg-lime/60" />
+      <Card className="relative w-full max-w-md rounded-[28px] py-7 shadow-panel">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto text-4xl">🏠</div>
-          <CardTitle className="text-2xl font-bold">FreeDomus</CardTitle>
+          <div className="mx-auto grid size-14 place-items-center rounded-full bg-lime">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#17251c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+          </div>
+          <CardTitle className="font-display text-[32px] font-extrabold tracking-[-0.02em]">FreeDomus</CardTitle>
           <CardDescription>Crea tu cuenta y empieza a gestionar tu hogar</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleRegister}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+              <div className="rounded-2xl bg-danger-soft p-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -115,7 +119,7 @@ export default function RegisterPage() {
                   {PASSWORD_RULES.map((rule) => {
                     const ok = rule.test(password)
                     return (
-                      <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-green-600' : 'text-muted-foreground'}`}>
+                      <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${ok ? 'text-leaf' : 'text-muted-foreground'}`}>
                         {ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
                         {rule.label}
                       </li>
@@ -147,19 +151,19 @@ export default function RegisterPage() {
                 </button>
               </div>
               {confirmPassword.length > 0 && !passwordsMatch && (
-                <p className="text-xs text-red-500">Las contraseñas no coinciden</p>
+                <p className="text-xs text-danger">Las contraseñas no coinciden</p>
               )}
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading || !passwordValid || !passwordsMatch}>
+          <CardFooter className="flex flex-col gap-3 border-0 bg-transparent">
+            <Button type="submit" size="lg" className="w-full" disabled={loading || !passwordValid || !passwordsMatch}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Crear cuenta
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               ¿Ya tienes cuenta?{' '}
-              <Link href="/auth/login" className="text-primary font-medium hover:underline">
+              <Link href="/auth/login" className="font-semibold text-leaf hover:underline">
                 Inicia sesión
               </Link>
             </p>

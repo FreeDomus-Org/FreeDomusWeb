@@ -6,7 +6,8 @@ export async function fetchHistory(userId: string, workspaceId?: string | null):
   let query = supabase.from('cooking_history').select('*, recipe:recipes(*)').order('cooked_at', { ascending: false })
 
   if (workspaceId) {
-    query = query.eq('workspace_id', workspaceId)
+    // Workspace entries plus the user's personal ones (the history form saves those)
+    query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`)
   } else {
     query = query.eq('user_id', userId).is('workspace_id', null)
   }
@@ -14,6 +15,32 @@ export async function fetchHistory(userId: string, workspaceId?: string | null):
   const { data, error } = await query
   if (error) throw error
   return (data ?? []) as CookingHistory[]
+}
+
+// The user's cooking history since a given moment, oldest first
+export async function fetchHistorySince(userId: string, since: Date): Promise<CookingHistory[]> {
+  const { data, error } = await createClient()
+    .from('cooking_history')
+    .select('*, recipe:recipes(*)')
+    .eq('user_id', userId)
+    .gte('cooked_at', since.toISOString())
+    .order('cooked_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as CookingHistory[]
+}
+
+// Recipe ids the user cooked today (local day), one per history row
+export async function fetchCookedToday(userId: string): Promise<string[]> {
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const end = new Date(start); end.setDate(end.getDate() + 1)
+  const { data, error } = await createClient()
+    .from('cooking_history')
+    .select('recipe_id')
+    .eq('user_id', userId)
+    .gte('cooked_at', start.toISOString())
+    .lt('cooked_at', end.toISOString())
+  if (error) throw error
+  return (data ?? []).map(r => r.recipe_id as string)
 }
 
 export async function fetchTopRated(userId: string, limit = 10): Promise<CookingHistory[]> {

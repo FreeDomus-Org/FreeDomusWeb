@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchRecipes, createRecipe, updateRecipe, deleteRecipe, toggleFavorite } from '@/lib/services/recipes'
-import { setRecipeIngredients } from '@/lib/services/recipeIngredients'
+import { fetchRecipeIngredients, setRecipeIngredients } from '@/lib/services/recipeIngredients'
 import { fetchProducts } from '@/lib/services/products'
 import RecipeDetailPanel from '@/components/recipes/RecipeDetailPanel'
 import type { Recipe, RecipeCreate, Product } from '@/types'
@@ -11,10 +11,9 @@ import { MEAL_TYPES, DIFFICULTIES, DEFAULT_CATEGORIES, INGREDIENT_UNITS } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, EmptyState, LoadingState, Stars } from '@/components/ui/freedomus'
 import {
-  Plus, Search, Star, Heart, Trash2, Edit2, Clock, Users, Flame, X, ChevronDown, Loader2, Eye,
+  Plus, Search, Star, Heart, Trash2, Edit2, Clock, Users, Flame, X, Loader2, Eye,
 } from 'lucide-react'
 
 type FilterMode = 'all' | 'Desayuno' | 'Almuerzo' | 'Cena' | 'favorites' | 'easy'
@@ -23,7 +22,11 @@ const FILTER_LABELS: Record<FilterMode, string> = {
   all: 'Todas', Desayuno: 'Desayuno', Almuerzo: 'Almuerzo',
   Cena: 'Cena', favorites: 'Favoritas', easy: 'Fáciles',
 }
-const MEAL_EMOJI: Record<string, string> = { Desayuno: '🌅', Almuerzo: '🍽️', Cena: '🌙' }
+const DIFFICULTY_TONE: Record<string, string> = {
+  Fácil: 'bg-lime text-lime-ink',
+  Media: 'bg-peach text-peach-ink',
+  Difícil: 'bg-coral text-coral-ink',
+}
 
 interface LinkedIngredient {
   product: Product
@@ -71,6 +74,9 @@ export default function RecipesPage() {
   const [ingUnit, setIngUnit] = useState('g')
   const [ingNotes, setIngNotes] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  // false mientras se cargan los ingredientes guardados de la receta en edición (o si falló la carga)
+  const [ingredientsLoaded, setIngredientsLoaded] = useState(true)
+  const editingIdRef = useRef<string | null>(null)
 
   const load = useCallback(async (uid: string, wsId: string | null) => {
     setLoading(true)
@@ -115,8 +121,24 @@ export default function RecipesPage() {
   }, [productSearch, products])
 
   function openAdd() {
+    editingIdRef.current = null
     setEditing(null); setForm({ ...EMPTY_FORM, user_id: userId ?? '', workspace_id: workspaceId })
-    setSteps([]); setLinkedIngredients([]); setShowForm(true)
+    setSteps([]); setLinkedIngredients([]); setIngredientsLoaded(true); setShowForm(true)
+  }
+
+  async function loadLinkedIngredients(recipeId: string) {
+    editingIdRef.current = recipeId
+    setLinkedIngredients([]); setIngredientsLoaded(false)
+    try {
+      const ings = await fetchRecipeIngredients(recipeId)
+      if (editingIdRef.current !== recipeId) return // se abrió otra receta mientras tanto
+      setLinkedIngredients(ings
+        .filter(i => i.product)
+        .map(i => ({ product: i.product!, quantity: i.quantity, unit: i.unit, notes: i.notes ?? '' })))
+      setIngredientsLoaded(true)
+    } catch (err) {
+      console.error('fetchRecipeIngredients failed', err)
+    }
   }
 
   function openEdit(r: Recipe) {
@@ -131,7 +153,7 @@ export default function RecipesPage() {
     })
     const parsedSteps = r.preparation_steps?.split('\n').map(s => s.replace(/^\d+\.\s*/, '').trim()).filter(Boolean) ?? []
     setSteps(parsedSteps)
-    setLinkedIngredients([]) // se cargan aparte si necesitas
+    loadLinkedIngredients(r.id)
     setShowForm(true)
   }
 
@@ -170,7 +192,9 @@ export default function RecipesPage() {
         const created = await createRecipe(payload)
         recipeId = created.id
       }
-      if (linkedIngredients.length > 0) {
+      // Al editar se reescriben siempre (así quitar ingredientes también se guarda),
+      // pero solo si los existentes llegaron a cargarse, para no borrarlos por error
+      if (editing ? ingredientsLoaded : linkedIngredients.length > 0) {
         await setRecipeIngredients(recipeId, linkedIngredients.map(i => ({
           product_id: i.product.id,
           quantity: i.quantity,
@@ -217,79 +241,65 @@ export default function RecipesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Recetas</h1>
-        <Button onClick={openAdd} size="sm"><Plus className="h-4 w-4 mr-1" /> Nueva receta</Button>
-      </div>
+    <div className="flex flex-1 flex-col gap-[18px]">
+      <PageHeader title="Recetas">
+        <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nueva receta</Button>
+      </PageHeader>
 
-      <div className="flex flex-wrap gap-2">
+      <ChipRow>
         {(Object.keys(FILTER_LABELS) as FilterMode[]).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${filter === f ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
-            {FILTER_LABELS[f]}
-          </button>
+          <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>{FILTER_LABELS[f]}</Chip>
         ))}
-      </div>
+      </ChipRow>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar recetas..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-      </div>
+      <SearchField placeholder="Buscar recetas..." value={search} onChange={e => setSearch(e.target.value)} />
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-4xl mb-2">🍽️</p>
-          <p>No hay recetas{search ? ' con ese nombre' : ''}.</p>
-        </div>
+        <EmptyState>No hay recetas{search ? ' con ese nombre' : ''}.</EmptyState>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] content-start gap-3.5">
           {filtered.map(recipe => (
-            <Card key={recipe.id} className="overflow-hidden hover:shadow-md transition-shadow">
-              {recipe.image_url && (
-                <div className="h-32 overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias */}
-                  <img src={recipe.image_url} alt={recipe.name} className="w-full h-full object-cover" />
-                </div>
-              )}
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">{recipe.name}</h3>
-                    <p className="text-sm text-muted-foreground">{MEAL_EMOJI[recipe.meal_type] ?? ''} {recipe.meal_type}</p>
-                  </div>
-                  <button onClick={() => handleToggleFavorite(recipe)} className="shrink-0 mt-0.5">
-                    <Heart className={`h-4 w-4 ${recipe.is_favorite ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
-                  </button>
+            <div key={recipe.id} className="flex flex-col gap-3.5 rounded-3xl bg-card p-3 shadow-card">
+              <div className="stripes-light relative grid h-[120px] place-items-center overflow-hidden rounded-2xl font-mono text-[11px] tracking-[0.06em] text-ink-5">
+                {recipe.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias
+                  <img src={recipe.image_url} alt={recipe.name} className="absolute inset-0 h-full w-full object-cover" />
+                ) : 'FOTO DE RECETA'}
+                <button onClick={() => handleToggleFavorite(recipe)} aria-label="Favorita"
+                  className={`absolute top-2 right-2 grid size-[34px] cursor-pointer place-items-center rounded-full bg-card ${recipe.is_favorite ? 'text-peach-ink' : 'text-ink-3'}`}>
+                  <Heart className={`size-[17px] ${recipe.is_favorite ? 'fill-current' : ''}`} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2.5 px-1.5">
+                <div className="min-w-0">
+                  <h3 className="truncate font-display text-[19px] font-bold">{recipe.name}</h3>
+                  <p className="mt-0.5 text-[12.5px] text-ink-5">{recipe.meal_type}</p>
                 </div>
 
-                <div className="flex flex-wrap gap-1">
-                  {recipe.category.slice(0, 3).map(c => <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>)}
-                  {recipe.difficulty && <Badge variant="outline" className="text-xs">{recipe.difficulty}</Badge>}
+                <div className="flex flex-wrap gap-1.5">
+                  {recipe.difficulty && <span className={`rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${DIFFICULTY_TONE[recipe.difficulty] ?? 'bg-sage text-ink-2'}`}>{recipe.difficulty}</span>}
+                  {recipe.category.slice(0, 3).map(c => <span key={c} className="rounded-full bg-butter px-2.5 py-0.5 text-[11.5px] font-semibold text-butter-ink">{c}</span>)}
                 </div>
 
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {recipe.time_minutes && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{recipe.time_minutes}m</span>}
-                  {recipe.servings && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{recipe.servings}</span>}
-                  {recipe.total_calories && <span className="flex items-center gap-1"><Flame className="h-3 w-3" />{recipe.total_calories} kcal</span>}
-                  {recipe.rating && <span className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{recipe.rating}</span>}
+                <div className="flex flex-wrap items-center gap-3.5 text-[12.5px] text-ink-2">
+                  {recipe.time_minutes && <span className="flex items-center gap-1.5"><Clock className="size-3.5" />{recipe.time_minutes}m</span>}
+                  {recipe.servings && <span className="flex items-center gap-1.5"><Users className="size-3.5" />{recipe.servings}</span>}
+                  {recipe.total_calories && <span className="flex items-center gap-1.5"><Flame className="size-3.5" />{recipe.total_calories} kcal</span>}
+                  {recipe.rating && <span className="flex items-center gap-1.5"><Star className="size-3.5 fill-star text-star" />{recipe.rating}</span>}
                 </div>
+              </div>
 
-                <div className="flex gap-2 pt-1">
-                  <Button size="sm" className="flex-1" onClick={() => setViewingRecipe(recipe)}>
-                    <Eye className="h-3 w-3 mr-1" /> Ver receta
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => openEdit(recipe)}>
-                    <Edit2 className="h-3 w-3" />
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(recipe.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              <div className="mt-auto flex items-center gap-2 px-0.5 pb-0.5">
+                <Button className="h-[38px] flex-1 text-[13.5px]" onClick={() => setViewingRecipe(recipe)}>
+                  <Eye /> Ver receta
+                </Button>
+                <IconAction size="lg" onClick={() => openEdit(recipe)} aria-label="Editar"><Edit2 /></IconAction>
+                <IconAction size="lg" tone="danger" onClick={() => handleDelete(recipe.id)} aria-label="Eliminar"><Trash2 /></IconAction>
+              </div>
+            </div>
           ))}
         </div>
       )}
@@ -307,179 +317,160 @@ export default function RecipesPage() {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-end">
-          <div className="w-full max-w-xl bg-background h-full overflow-y-auto shadow-xl flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10">
-              <h2 className="font-semibold text-lg">{editing ? 'Editar receta' : 'Nueva receta'}</h2>
-              <button onClick={() => setShowForm(false)}><X className="h-5 w-5" /></button>
+        <SidePanel
+          wide
+          eyebrow="Recetas"
+          title={editing ? 'Editar receta' : 'Nueva receta'}
+          onClose={() => setShowForm(false)}
+          footer={<>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button size="lg" className="flex-[1.2]" onClick={handleSave} disabled={saving || !form.name.trim()}>
+              {saving ? <Loader2 className="animate-spin" /> : null}
+              {editing ? 'Guardar cambios' : 'Crear receta'}
+            </Button>
+          </>}
+        >
+          {/* Name */}
+          <Field label="Nombre *">
+            <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre de la receta" />
+          </Field>
+
+          {/* Meal type + Favorite */}
+          <div className="flex items-end gap-3">
+            <Field label="Tipo de comida" className="flex-1">
+              <NativeSelect value={form.meal_type} onChange={e => setForm(f => ({ ...f, meal_type: e.target.value }))}>
+                {MEAL_TYPES.map(t => <option key={t}>{t}</option>)}
+              </NativeSelect>
+            </Field>
+            <button type="button" onClick={() => setForm(f => ({ ...f, is_favorite: !f.is_favorite }))}
+              className={`flex h-11 cursor-pointer items-center gap-2 rounded-full px-4 text-[13.5px] font-semibold transition-colors ${form.is_favorite ? 'bg-danger-soft text-danger' : 'bg-sage text-ink-3 hover:bg-sage-deep'}`}>
+              <Heart className={`size-4 ${form.is_favorite ? 'fill-current' : ''}`} /> Favorita
+            </button>
+          </div>
+
+          {/* Categories */}
+          <div className="flex flex-col gap-2.5">
+            <Label>Categorías</Label>
+            <div className="flex flex-wrap gap-2">
+              {allCategories.map(cat => (
+                <Chip key={cat} tone="soft" active={form.category.includes(cat)} onClick={() => toggleCategory(cat)}>{cat}</Chip>
+              ))}
             </div>
-
-            <div className="p-4 space-y-5 flex-1">
-              {/* Name */}
-              <div className="space-y-1">
-                <Label>Nombre *</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre de la receta" />
-              </div>
-
-              {/* Meal type + Favorite */}
-              <div className="flex gap-4">
-                <div className="flex-1 space-y-1">
-                  <Label>Tipo de comida</Label>
-                  <div className="relative">
-                    <select value={form.meal_type} onChange={e => setForm(f => ({ ...f, meal_type: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {MEAL_TYPES.map(t => <option key={t}>{t}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-                <div className="flex items-end pb-0.5">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={form.is_favorite} onChange={e => setForm(f => ({ ...f, is_favorite: e.target.checked }))} className="rounded" />
-                    <Heart className="h-4 w-4 text-red-500" /> Favorita
-                  </label>
-                </div>
-              </div>
-
-              {/* Categories */}
-              <div className="space-y-2">
-                <Label>Categorías</Label>
-                <div className="flex flex-wrap gap-2">
-                  {allCategories.map(cat => (
-                    <button key={cat} type="button" onClick={() => toggleCategory(cat)}
-                      className={`px-2 py-1 rounded-md text-xs border transition-colors ${form.category.includes(cat) ? 'bg-primary text-primary-foreground border-primary' : 'border-input hover:bg-muted'}`}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="Nueva categoría..." className="text-sm h-8" />
-                  <Button type="button" size="sm" variant="outline" onClick={addCustomCategory}>Añadir</Button>
-                </div>
-              </div>
-
-              {/* Ingredientes vinculados al inventario */}
-              <div className="space-y-2">
-                <Label>Ingredientes <span className="text-xs text-muted-foreground font-normal">(vinculados al inventario)</span></Label>
-
-                {linkedIngredients.map((ing, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm bg-muted rounded-lg px-3 py-1.5">
-                    <span className="flex-1">{ing.quantity} {ing.unit} — {ing.product.name}</span>
-                    <button onClick={() => removeLinkedIngredient(i)}><X className="h-3 w-3" /></button>
-                  </div>
-                ))}
-
-                {/* Buscador de producto */}
-                <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      value={selectedProduct ? selectedProduct.name : productSearch}
-                      onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null) }}
-                      placeholder="Buscar producto del catálogo..."
-                      className="pl-8 text-sm h-8"
-                    />
-                  </div>
-                  {productResults.length > 0 && !selectedProduct && (
-                    <div className="rounded-md border bg-background shadow-sm max-h-36 overflow-y-auto">
-                      {productResults.map(p => (
-                        <button key={p.id} type="button"
-                          onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch('') }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between">
-                          <span>{p.name}</span>
-                          <span className="text-xs text-muted-foreground">{p.unit}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {productSearch.trim() && productResults.length === 0 && !selectedProduct && (
-                    <p className="text-xs text-muted-foreground px-1">
-                      {products.length === 0
-                        ? 'Aún no tienes productos en el catálogo. Créalos primero en Productos.'
-                        : `No hay productos que coincidan con "${productSearch.trim()}". Créalo primero en Productos.`}
-                    </p>
-                  )}
-                  {selectedProduct && (
-                    <div className="flex gap-2 items-center">
-                      <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}
-                        placeholder="Cantidad" className="w-24 text-sm h-8" />
-                      <select value={ingUnit} onChange={e => setIngUnit(e.target.value)}
-                        className="rounded-md border border-input bg-background px-2 py-1 text-sm w-20 h-8">
-                        {INGREDIENT_UNITS.map(u => <option key={u}>{u}</option>)}
-                      </select>
-                      <Input value={ingNotes} onChange={e => setIngNotes(e.target.value)}
-                        placeholder="Nota (opcional)" className="flex-1 text-sm h-8" />
-                      <Button type="button" size="sm" variant="outline" onClick={addLinkedIngredient} disabled={!ingQty}>+</Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Steps */}
-              <div className="space-y-2">
-                <Label>Pasos de preparación</Label>
-                {steps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm bg-muted rounded px-2 py-1">
-                    <span className="text-muted-foreground shrink-0 font-mono">{i + 1}.</span>
-                    <span className="flex-1">{step}</span>
-                    <button onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))}><X className="h-3 w-3 mt-0.5" /></button>
-                  </div>
-                ))}
-                <div className="flex gap-2">
-                  <Input value={stepInput} onChange={e => setStepInput(e.target.value)} placeholder="Describe el paso..."
-                    className="flex-1 text-sm h-8" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addStep())} />
-                  <Button type="button" size="sm" variant="outline" onClick={addStep}>+</Button>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Tiempo (min)</Label>
-                  <Input type="number" min={1} value={form.time_minutes ?? ''} onChange={e => setForm(f => ({ ...f, time_minutes: +e.target.value || null }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Porciones</Label>
-                  <Input type="number" min={1} value={form.servings ?? ''} onChange={e => setForm(f => ({ ...f, servings: +e.target.value || null }))} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Dificultad</Label>
-                  <div className="relative">
-                    <select value={form.difficulty ?? 'Fácil'} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8">
-                      {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label>Calorías</Label>
-                  <Input type="number" min={0} value={form.total_calories ?? ''} onChange={e => setForm(f => ({ ...f, total_calories: +e.target.value || null }))} />
-                </div>
-              </div>
-
-              {/* Rating */}
-              <div className="space-y-1">
-                <Label>Valoración (1–5)</Label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <button key={n} type="button" onClick={() => setForm(f => ({ ...f, rating: f.rating === n ? null : n }))}>
-                      <Star className={`h-6 w-6 ${(form.rating ?? 0) >= n ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}`} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t flex gap-2 sticky bottom-0 bg-background">
-              <Button variant="outline" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
-              <Button className="flex-1" onClick={handleSave} disabled={saving || !form.name.trim()}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                {editing ? 'Guardar cambios' : 'Crear receta'}
-              </Button>
+            <div className="flex gap-2">
+              <Input value={newCat} onChange={e => setNewCat(e.target.value)} placeholder="Nueva categoría..." className="flex-1" />
+              <Button type="button" className="h-11 px-5" onClick={addCustomCategory}>Añadir</Button>
             </div>
           </div>
-        </div>
+
+          {/* Ingredientes vinculados al inventario */}
+          <div className="flex flex-col gap-3 rounded-[20px] bg-canvas p-4">
+            <div className="flex items-baseline gap-2">
+              <p className="font-display text-base font-bold">Ingredientes</p>
+              <p className="text-xs text-ink-4">vinculados al inventario</p>
+            </div>
+
+            {!ingredientsLoaded && (
+              <p className="flex items-center gap-2 px-1 text-xs text-ink-4"><Loader2 className="size-3.5 animate-spin" /> Cargando ingredientes...</p>
+            )}
+            {linkedIngredients.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {linkedIngredients.map((ing, i) => (
+                  <button key={i} type="button" onClick={() => removeLinkedIngredient(i)}
+                    className="flex cursor-pointer items-center gap-2 rounded-full bg-forest px-3 py-1.5 text-[13px] font-semibold text-lime">
+                    {ing.quantity} {ing.unit} — {ing.product.name}
+                    <X className="size-3 stroke-[2.6]" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Buscador de producto */}
+            <div className="flex h-10 items-center gap-2.5 rounded-xl bg-card px-3.5">
+              <Search className="size-[17px] shrink-0 text-ink-4" />
+              <input
+                value={selectedProduct ? selectedProduct.name : productSearch}
+                onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null) }}
+                placeholder="Buscar producto del catálogo..."
+                className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-ink-5"
+              />
+            </div>
+            {productResults.length > 0 && !selectedProduct && (
+              <div className="flex flex-wrap gap-1.5">
+                {productResults.map(p => (
+                  <button key={p.id} type="button"
+                    onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch('') }}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-sage">
+                    <Plus className="size-3 stroke-[2.4]" />{p.name}
+                    <span className="text-xs text-ink-5">{p.unit}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {productSearch.trim() && productResults.length === 0 && !selectedProduct && (
+              <p className="px-1 text-xs text-ink-4">
+                {products.length === 0
+                  ? 'Aún no tienes productos en el catálogo. Créalos primero en Productos.'
+                  : `No hay productos que coincidan con "${productSearch.trim()}". Créalo primero en Productos.`}
+              </p>
+            )}
+            {selectedProduct && (
+              <div className="flex items-center gap-2">
+                <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}
+                  placeholder="Cantidad" className="h-10 w-24 rounded-xl bg-card px-3 text-sm" />
+                <select value={ingUnit} onChange={e => setIngUnit(e.target.value)}
+                  className="h-10 w-[84px] shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
+                  {INGREDIENT_UNITS.map(u => <option key={u}>{u}</option>)}
+                </select>
+                <Input value={ingNotes} onChange={e => setIngNotes(e.target.value)}
+                  placeholder="Nota (opcional)" className="h-10 flex-1 rounded-xl bg-card px-3 text-sm" />
+                <IconAction tone="dark" size="md" onClick={addLinkedIngredient} disabled={!ingQty} aria-label="Añadir ingrediente"><Plus className="stroke-[2.4]" /></IconAction>
+              </div>
+            )}
+          </div>
+
+          {/* Steps */}
+          <div className="flex flex-col gap-2.5">
+            <Label>Pasos de preparación</Label>
+            {steps.map((step, i) => (
+              <div key={i} className="flex items-start gap-3 text-sm leading-snug">
+                <div className="grid size-[26px] shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</div>
+                <span className="flex-1 pt-[3px]">{step}</span>
+                <button type="button" className="cursor-pointer pt-[5px] text-danger" onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))} aria-label="Quitar paso">
+                  <X className="size-3 stroke-[2.6]" />
+                </button>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Input value={stepInput} onChange={e => setStepInput(e.target.value)} placeholder="Describe el paso..."
+                className="flex-1" onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addStep())} />
+              <IconAction tone="dark" className="size-11" onClick={addStep} aria-label="Añadir paso"><Plus className="stroke-[2.4]" /></IconAction>
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Tiempo (min)">
+              <Input type="number" min={1} value={form.time_minutes ?? ''} onChange={e => setForm(f => ({ ...f, time_minutes: +e.target.value || null }))} />
+            </Field>
+            <Field label="Porciones">
+              <Input type="number" min={1} value={form.servings ?? ''} onChange={e => setForm(f => ({ ...f, servings: +e.target.value || null }))} />
+            </Field>
+            <Field label="Dificultad">
+              <NativeSelect value={form.difficulty ?? 'Fácil'} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))}>
+                {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
+              </NativeSelect>
+            </Field>
+            <Field label="Calorías">
+              <Input type="number" min={0} value={form.total_calories ?? ''} onChange={e => setForm(f => ({ ...f, total_calories: +e.target.value || null }))} />
+            </Field>
+          </div>
+
+          {/* Rating */}
+          <div className="flex flex-col gap-2">
+            <Label>Valoración (1–5)</Label>
+            <Stars size={30} value={form.rating} onChange={rating => setForm(f => ({ ...f, rating }))} />
+          </div>
+        </SidePanel>
       )}
     </div>
   )

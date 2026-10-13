@@ -7,12 +7,20 @@ import type { Workspace, WorkspaceMember, WorkspaceInvitation } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, Edit2, X, Users, Crown, UserMinus, Loader2, Mail, Send } from 'lucide-react'
+import { PageHeader, Eyebrow, Field, IconAction, CenterModal, EmptyState, LoadingState } from '@/components/ui/freedomus'
+import { Plus, Trash2, Edit2, Users, Crown, UserMinus, Loader2, Mail, Send } from 'lucide-react'
 
 const ROLE_LABELS: Record<string, string> = { owner: 'Propietario', admin: 'Admin', member: 'Miembro' }
-const ROLE_COLORS: Record<string, string> = { owner: 'bg-amber-100 text-amber-700', admin: 'bg-blue-100 text-blue-700', member: 'bg-gray-100 text-gray-700' }
+const ROLE_COLORS: Record<string, string> = { owner: 'bg-butter text-butter-ink', admin: 'bg-sky text-sky-ink', member: 'bg-stone text-stone-ink' }
+
+function Panel({ icon: Icon, title, children }: { icon: React.ElementType; title: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl bg-card p-[22px] shadow-card">
+      <h2 className="flex items-center gap-2.5 font-display text-[19px] font-bold"><Icon className="size-[18px] stroke-[1.9]" />{title}</h2>
+      {children}
+    </section>
+  )
+}
 const ICONS = ['🏠', '🍳', '🌿', '⭐', '🦁', '🌈', '🔑', '🏡', '🍀', '🎯']
 
 export default function WorkspacePage() {
@@ -92,14 +100,14 @@ export default function WorkspacePage() {
   }
 
   async function handleDeleteWorkspace(ws: Workspace) {
-    if (!confirm(`¿Eliminar el workspace "${ws.name}"? Se perderán todos los datos asociados.`)) return
+    if (!confirm(`¿Eliminar el espacio de trabajo "${ws.name}"? Se perderán todos los datos asociados.`)) return
     await deleteWorkspace(ws.id)
     setWorkspaces(prev => prev.filter(w => w.id !== ws.id))
     if (selected?.id === ws.id) setSelected(null)
   }
 
   async function handleRemoveMember(member: WorkspaceMember) {
-    if (!selected || !confirm('¿Eliminar este miembro del workspace?')) return
+    if (!selected || !confirm('¿Eliminar este miembro del espacio de trabajo?')) return
     await removeMember(selected.id, member.user_id)
     setMembers(prev => prev.filter(m => m.id !== member.id))
   }
@@ -150,148 +158,124 @@ export default function WorkspacePage() {
   const isOwner = userId && selected && workspaces.find(w => w.id === selected.id)?.owner_id === userId
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Workspace</h1>
-        <Button onClick={openCreate} size="sm"><Plus className="h-4 w-4 mr-1" /> Nuevo workspace</Button>
-      </div>
+    <div className="flex flex-1 flex-col gap-[18px]">
+      <PageHeader title="Espacio de trabajo">
+        <Button onClick={openCreate} size="sm"><Plus className="stroke-[2.4]" /> Nuevo espacio de trabajo</Button>
+      </PageHeader>
 
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState />
       ) : workspaces.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <p className="text-4xl mb-2">🏠</p>
-          <p>No tienes ningún workspace aún.</p>
-          <Button className="mt-4" onClick={openCreate}><Plus className="h-4 w-4 mr-1" /> Crear workspace</Button>
-        </div>
+        <EmptyState>
+          <p>No tienes ningún espacio de trabajo aún.</p>
+          <Button className="mt-4" onClick={openCreate}><Plus /> Crear espacio de trabajo</Button>
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
           {/* Workspace list */}
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Mis workspaces</h2>
-            {workspaces.map(ws => (
-              <div key={ws.id} role="button" tabIndex={0} onClick={() => setSelected(ws)}
-                onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelected(ws) } }}
-                className={`w-full text-left rounded-xl border p-4 transition-all cursor-pointer ${selected?.id === ws.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl">{ws.icon ?? '🏠'}</span>
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{ws.name}</p>
-                      <p className="text-xs text-muted-foreground">{ws.owner_id === userId ? 'Propietario' : 'Miembro'}</p>
-                    </div>
+          <section className="flex flex-col gap-3">
+            <Eyebrow className="px-1.5">Mis espacios de trabajo</Eyebrow>
+            {workspaces.map(ws => {
+              const active = selected?.id === ws.id
+              return (
+                <div key={ws.id} role="button" tabIndex={0} onClick={() => setSelected(ws)}
+                  onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelected(ws) } }}
+                  className={`flex cursor-pointer items-center gap-3.5 rounded-3xl p-4 shadow-card transition-colors ${active ? 'bg-forest text-[#f3f7ec]' : 'bg-card hover:bg-white/80'}`}>
+                  <div className="grid size-11 shrink-0 place-items-center rounded-full bg-lime text-xl">{ws.icon ?? '🏠'}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-lg font-bold">{ws.name}</p>
+                    <p className="mt-px text-[13px] opacity-70">{ws.owner_id === userId ? 'Propietario' : 'Miembro'}</p>
                   </div>
                   {ws.owner_id === userId && (
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={e => { e.stopPropagation(); openEdit(ws) }} className="p-1 rounded hover:bg-muted"><Edit2 className="h-3.5 w-3.5" /></button>
-                      <button onClick={e => { e.stopPropagation(); handleDeleteWorkspace(ws) }} className="p-1 rounded hover:bg-muted text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button onClick={e => { e.stopPropagation(); openEdit(ws) }} aria-label="Editar"
+                        className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-[rgba(127,150,130,.2)]"><Edit2 className="size-[15px]" /></button>
+                      <button onClick={e => { e.stopPropagation(); handleDeleteWorkspace(ws) }} aria-label="Eliminar"
+                        className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-danger-soft text-danger"><Trash2 className="size-[15px]" /></button>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
-          </div>
+              )
+            })}
+          </section>
 
           {/* Members panel */}
-          {selected && (
-            <div className="lg:col-span-2 space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Users className="h-4 w-4" />
-                    Miembros de {selected.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {membersLoading ? (
-                    <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-                  ) : members.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">Sin miembros cargados.</p>
-                  ) : (
-                    members.map(member => (
-                      <div key={member.id} className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm font-medium shrink-0">
-                            {(member.email ?? member.user_id).slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{member.full_name ?? member.email ?? member.user_id}</p>
-                            {member.email && member.full_name && <p className="text-xs text-muted-foreground truncate">{member.email}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${ROLE_COLORS[member.role]}`}>
-                            {member.role === 'owner' && <Crown className="h-3 w-3 inline mr-0.5" />}
-                            {ROLE_LABELS[member.role]}
-                          </span>
-                          {isOwner && member.user_id !== userId && (
-                            <button onClick={() => handleRemoveMember(member)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive">
-                              <UserMinus className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
+          {selected ? (
+            <div className="flex flex-col gap-4">
+              <Panel icon={Users} title={<>Miembros de {selected.name}</>}>
+                {membersLoading ? (
+                  <LoadingState className="py-4" />
+                ) : members.length === 0 ? (
+                  <p className="text-sm text-ink-5">Sin miembros cargados.</p>
+                ) : (
+                  members.map(member => (
+                    <div key={member.id} className="flex items-center gap-3.5">
+                      <div className="grid size-[38px] shrink-0 place-items-center rounded-full bg-canvas font-display text-sm font-extrabold">
+                        {(member.email ?? member.user_id).slice(0, 2).toUpperCase()}
                       </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14.5px] font-medium">{member.full_name ?? member.email ?? member.user_id}</p>
+                        {member.email && member.full_name && <p className="truncate text-xs text-ink-5">{member.email}</p>}
+                      </div>
+                      <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] font-semibold ${ROLE_COLORS[member.role]}`}>
+                        {member.role === 'owner' && <Crown className="size-3.5" />}
+                        {ROLE_LABELS[member.role]}
+                      </span>
+                      {isOwner && member.user_id !== userId && (
+                        <IconAction tone="danger" onClick={() => handleRemoveMember(member)} aria-label="Quitar miembro"><UserMinus /></IconAction>
+                      )}
+                    </div>
+                  ))
+                )}
+              </Panel>
 
               {/* Invite */}
               {isOwner && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base"><Mail className="h-4 w-4" /> Invitar miembro</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleInvite} className="flex gap-2">
-                      <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@ejemplo.com" className="flex-1" />
-                      <Button type="submit" disabled={inviting || !inviteEmail.trim()}>
-                        {inviting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Invitar'}
-                      </Button>
-                    </form>
-                    {inviteError && <p className="text-sm text-destructive mt-2">{inviteError}</p>}
-                    {inviteSuccess && <p className="text-sm text-green-600 mt-2">Invitación enviada correctamente.</p>}
-                  </CardContent>
-                </Card>
+                <Panel icon={Mail} title="Invitar miembro">
+                  <form onSubmit={handleInvite} className="flex gap-2.5">
+                    <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@ejemplo.com" className="flex-1" />
+                    <Button type="submit" className="h-11 px-[22px]" disabled={inviting || !inviteEmail.trim()}>
+                      {inviting ? <Loader2 className="animate-spin" /> : 'Invitar'}
+                    </Button>
+                  </form>
+                  {inviteError && <p className="text-sm text-danger">{inviteError}</p>}
+                  {inviteSuccess && <p className="text-sm font-medium text-leaf">Invitación enviada correctamente.</p>}
+                </Panel>
               )}
 
               {/* Sent invitations */}
               {isOwner && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-base"><Send className="h-4 w-4" /> Invitaciones enviadas</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {invitationsError && <p className="text-sm text-destructive">{invitationsError}</p>}
-                    {invitations.length === 0 && !invitationsError ? (
-                      <p className="text-sm text-muted-foreground text-center py-2">No hay invitaciones pendientes.</p>
-                    ) : invitations.map(inv => {
-                      const expired = new Date(inv.expires_at) < new Date()
-                      const busy = busyInvitation === inv.id
-                      return (
-                        <div key={inv.id} className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{inv.invited_email}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {expired ? 'Expirada' : 'Expira'} el {new Date(inv.expires_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {expired && <Badge variant="outline">Expirada</Badge>}
-                            <Button size="sm" variant="outline" disabled={busy} onClick={() => handleResendInvitation(inv)}>
-                              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Reenviar'}
-                            </Button>
-                            <button disabled={busy} onClick={() => handleDeleteInvitation(inv)} title="Eliminar invitación"
-                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                <Panel icon={Send} title="Invitaciones enviadas">
+                  {invitationsError && <p className="text-sm text-danger">{invitationsError}</p>}
+                  {invitations.length === 0 && !invitationsError ? (
+                    <p className="text-sm text-ink-5">Sin invitaciones pendientes.</p>
+                  ) : invitations.map(inv => {
+                    const expired = new Date(inv.expires_at) < new Date()
+                    const busy = busyInvitation === inv.id
+                    return (
+                      <div key={inv.id} className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-semibold">{inv.invited_email}</p>
+                          <p className="mt-0.5 text-[13px] text-ink-5">
+                            {expired ? 'Expirada' : 'Expira'} el {new Date(inv.expires_at).toLocaleDateString()}
+                          </p>
                         </div>
-                      )
-                    })}
-                  </CardContent>
-                </Card>
+                        {expired && <span className="rounded-full bg-danger-soft px-2.5 py-0.5 text-[11.5px] font-semibold text-danger">Expirada</span>}
+                        <Button size="sm" variant="outline" className="h-9 px-4" disabled={busy} onClick={() => handleResendInvitation(inv)}>
+                          {busy ? <Loader2 className="animate-spin" /> : 'Reenviar'}
+                        </Button>
+                        <IconAction tone="danger" disabled={busy} onClick={() => handleDeleteInvitation(inv)} title="Eliminar invitación" aria-label="Eliminar invitación">
+                          <Trash2 />
+                        </IconAction>
+                      </div>
+                    )
+                  })}
+                </Panel>
               )}
+            </div>
+          ) : (
+            <div className="grid min-h-40 place-items-center rounded-3xl border-[1.5px] border-dashed border-[#b9c5b5] p-6 text-center text-[15px] text-ink-5">
+              Selecciona un espacio de trabajo para ver sus miembros.
             </div>
           )}
         </div>
@@ -299,38 +283,33 @@ export default function WorkspacePage() {
 
       {/* Create/Edit Workspace Form */}
       {showCreateForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-xl shadow-xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="font-semibold">{editing ? 'Editar workspace' : 'Nuevo workspace'}</h2>
-              <button onClick={() => setShowCreateForm(false)}><X className="h-5 w-5" /></button>
-            </div>
-            <div className="p-4 space-y-4">
-              <div className="space-y-1">
-                <Label>Nombre *</Label>
-                <Input value={wsName} onChange={e => setWsName(e.target.value)} placeholder="Mi hogar" autoFocus />
-              </div>
-              <div className="space-y-2">
-                <Label>Icono</Label>
-                <div className="flex flex-wrap gap-2">
-                  {ICONS.map(icon => (
-                    <button key={icon} type="button" onClick={() => setWsIcon(icon)}
-                      className={`text-2xl p-1.5 rounded-lg border-2 transition-colors ${wsIcon === icon ? 'border-primary bg-primary/10' : 'border-transparent hover:border-muted'}`}>
-                      {icon}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="p-4 border-t flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
-              <Button className="flex-1" onClick={handleSaveWorkspace} disabled={saving || !wsName.trim()}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                {editing ? 'Guardar' : 'Crear'}
-              </Button>
+        <CenterModal
+          eyebrow="Espacio de trabajo"
+          title={editing ? 'Editar espacio de trabajo' : 'Nuevo espacio de trabajo'}
+          onClose={() => setShowCreateForm(false)}
+          footer={<>
+            <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowCreateForm(false)}>Cancelar</Button>
+            <Button size="lg" className="flex-[1.2]" onClick={handleSaveWorkspace} disabled={saving || !wsName.trim()}>
+              {saving && <Loader2 className="animate-spin" />}
+              {editing ? 'Guardar' : 'Crear'}
+            </Button>
+          </>}
+        >
+          <Field label="Nombre *">
+            <Input value={wsName} onChange={e => setWsName(e.target.value)} placeholder="Mi hogar" autoFocus />
+          </Field>
+          <div className="flex flex-col gap-2">
+            <Label>Icono</Label>
+            <div className="flex flex-wrap gap-2">
+              {ICONS.map(icon => (
+                <button key={icon} type="button" onClick={() => setWsIcon(icon)}
+                  className={`grid size-11 cursor-pointer place-items-center rounded-full text-xl transition-colors ${wsIcon === icon ? 'bg-lime ring-2 ring-forest' : 'bg-sage hover:bg-sage-deep'}`}>
+                  {icon}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
+        </CenterModal>
       )}
     </div>
   )
