@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { Plus, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { buttonVariants } from '@/components/ui/button'
+import CreateWorkspace from './CreateWorkspace'
 import { selectWorkspaceAction } from '@/app/actions/workspace'
 
 interface PendingInvite {
@@ -23,7 +23,8 @@ export default async function SelectWorkspacePage() {
     .eq('user_id', user!.id)
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: invitations } = await supabase.rpc('my_pending_invitations')
+  const { data: invitations, error: invitationsError } = await supabase.rpc('my_pending_invitations')
+  if (invitationsError) console.error('my_pending_invitations failed:', invitationsError.message)
   const pendingInvites: PendingInvite[] = invitations ?? []
 
   const workspaces = (memberships?.map((m: any) => m.workspace) ?? []).filter(Boolean)
@@ -69,10 +70,7 @@ export default async function SelectWorkspacePage() {
             <div className="text-5xl mb-4">🏡</div>
             <h2 className="mb-1 font-display text-xl font-bold">Aún no tienes ningún hogar</h2>
             <p className="text-sm text-muted-foreground mb-6">Crea tu primer espacio de trabajo para empezar</p>
-            <Link href="/dashboard/workspace" className={buttonVariants()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Crear espacio de trabajo
-            </Link>
+            <CreateWorkspace variant="primary" />
           </div>
         ) : (
           <div className="space-y-3">
@@ -94,13 +92,7 @@ export default async function SelectWorkspacePage() {
               </form>
             ))}
 
-            <Link
-              href="/dashboard/workspace"
-              className="flex items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-[#b9c5b5] p-5 text-ink-5 transition-all duration-200 hover:border-forest hover:text-forest"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="text-sm font-medium">Crear nuevo espacio de trabajo</span>
-            </Link>
+            <CreateWorkspace variant="dashed" />
           </div>
         )}
 
