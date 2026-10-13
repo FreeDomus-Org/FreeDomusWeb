@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchRecipes, createRecipe, updateRecipe, deleteRecipe, toggleFavorite } from '@/lib/services/recipes'
 import { setRecipeIngredients } from '@/lib/services/recipeIngredients'
@@ -52,7 +52,14 @@ export default function RecipesPage() {
   const [saving, setSaving] = useState(false)
   const [stepInput, setStepInput] = useState('')
   const [steps, setSteps] = useState<string[]>([])
-  const [customCategories, setCustomCategories] = useState<string[]>([])
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      return JSON.parse(localStorage.getItem('recipeCategories') ?? '[]')
+    } catch {
+      return []
+    }
+  })
   const [newCat, setNewCat] = useState('')
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null)
 
@@ -60,7 +67,6 @@ export default function RecipesPage() {
   const [linkedIngredients, setLinkedIngredients] = useState<LinkedIngredient[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [productSearch, setProductSearch] = useState('')
-  const [productResults, setProductResults] = useState<Product[]>([])
   const [ingQty, setIngQty] = useState('')
   const [ingUnit, setIngUnit] = useState('g')
   const [ingNotes, setIngNotes] = useState('')
@@ -90,8 +96,6 @@ export default function RecipesPage() {
         console.error('fetchProducts failed', err)
       }
     })
-    const saved = localStorage.getItem('recipeCategories')
-    if (saved) setCustomCategories(JSON.parse(saved))
   }, [load])
 
   const allCategories = [...DEFAULT_CATEGORIES, ...customCategories]
@@ -104,14 +108,14 @@ export default function RecipesPage() {
   })
 
   // Búsqueda de productos para añadir al form
-  useEffect(() => {
-    if (!productSearch.trim()) { setProductResults([]); return }
+  const productResults = useMemo(() => {
+    if (!productSearch.trim()) return []
     const term = productSearch.toLowerCase()
-    setProductResults(products.filter(p => p.name.toLowerCase().includes(term)).slice(0, 6))
+    return products.filter(p => p.name.toLowerCase().includes(term)).slice(0, 6)
   }, [productSearch, products])
 
   function openAdd() {
-    setEditing(null); setForm({ ...EMPTY_FORM, user_id: userId ?? '' })
+    setEditing(null); setForm({ ...EMPTY_FORM, user_id: userId ?? '', workspace_id: workspaceId })
     setSteps([]); setLinkedIngredients([]); setShowForm(true)
   }
 
@@ -134,7 +138,7 @@ export default function RecipesPage() {
   function addLinkedIngredient() {
     if (!selectedProduct || !ingQty) return
     setLinkedIngredients(prev => [...prev, { product: selectedProduct, quantity: +ingQty, unit: ingUnit, notes: ingNotes }])
-    setSelectedProduct(null); setProductSearch(''); setProductResults([]); setIngQty(''); setIngNotes('')
+    setSelectedProduct(null); setProductSearch(''); setIngQty(''); setIngNotes('')
   }
 
   function removeLinkedIngredient(idx: number) {
@@ -246,6 +250,7 @@ export default function RecipesPage() {
             <Card key={recipe.id} className="overflow-hidden hover:shadow-md transition-shadow">
               {recipe.image_url && (
                 <div className="h-32 overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias */}
                   <img src={recipe.image_url} alt={recipe.name} className="w-full h-full object-cover" />
                 </div>
               )}
@@ -379,7 +384,7 @@ export default function RecipesPage() {
                     <div className="rounded-md border bg-background shadow-sm max-h-36 overflow-y-auto">
                       {productResults.map(p => (
                         <button key={p.id} type="button"
-                          onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch(''); setProductResults([]) }}
+                          onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch('') }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center justify-between">
                           <span>{p.name}</span>
                           <span className="text-xs text-muted-foreground">{p.unit}</span>

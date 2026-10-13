@@ -6,7 +6,8 @@ export async function fetchRecipes(userId: string, workspaceId?: string | null):
   let query = supabase.from('recipes').select('*').order('created_at', { ascending: false })
 
   if (workspaceId) {
-    query = query.eq('workspace_id', workspaceId)
+    // Workspace recipes plus the user's personal ones (planner/history already list those)
+    query = query.or(`workspace_id.eq.${workspaceId},and(user_id.eq.${userId},workspace_id.is.null)`)
   } else {
     query = query.eq('user_id', userId).is('workspace_id', null)
   }
