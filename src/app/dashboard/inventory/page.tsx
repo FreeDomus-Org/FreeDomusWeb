@@ -187,12 +187,12 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Inventario">
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Añadir item</Button>
       </PageHeader>
 
-      <div className="grid max-w-[560px] grid-cols-3 gap-3">
+      <div className="grid max-w-140 grid-cols-3 gap-3">
         <StatTile value={items.length} label="Items" />
         <StatTile value={expiringCount} label="Caducan pronto" tone="danger" />
         <StatTile value={items.length - expiringCount} label="En buen estado" tone="lime" />
@@ -218,11 +218,11 @@ export default function InventoryPage() {
             const days = daysUntilExpiry(item.expiration_date)
             const expiring = days !== null && days <= 7
             return (
-              <div key={item.id} className="flex flex-col gap-3.5 rounded-3xl bg-card p-[18px] shadow-card">
+              <div key={item.id} className="flex flex-col gap-3.5 rounded-3xl bg-card p-4.5 shadow-card">
                 <div className="flex items-start justify-between gap-2.5">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 font-display text-[19px] font-bold">
-                      {expiring && <AlertTriangle className="size-[18px] shrink-0 text-danger" />}
+                      {expiring && <AlertTriangle className="size-4.5 shrink-0 text-danger" />}
                       <h3 className="truncate">{item.product?.name ?? '—'}</h3>
                     </div>
                     <p className="mt-0.5 text-[13px] text-ink-5">{item.quantity} {item.unit}</p>

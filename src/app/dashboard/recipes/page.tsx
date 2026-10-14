@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { fetchRecipes, createRecipe, updateRecipe, deleteRecipe, toggleFavorite } from '@/lib/services/recipes'
 import { fetchRecipeIngredients, setRecipeIngredients } from '@/lib/services/recipeIngredients'
 import { fetchProducts } from '@/lib/services/products'
+import { uploadRecipeImage, removeRecipeImage, setRecipeImage } from '@/lib/services/recipeImages'
 import RecipeDetailPanel from '@/components/recipes/RecipeDetailPanel'
 import type { Recipe, RecipeCreate, Product } from '@/types'
 import { MEAL_TYPES, DIFFICULTIES, DEFAULT_CATEGORIES, INGREDIENT_UNITS } from '@/types'
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, EmptyState, LoadingState, Stars } from '@/components/ui/freedomus'
 import {
-  Plus, Search, Star, Heart, Trash2, Edit2, Clock, Users, Flame, X, Loader2, Eye,
+  Plus, Search, Star, Heart, Trash2, Edit2, Clock, Users, Flame, X, Loader2, Eye, Camera, ImagePlus, Globe, Lock,
 } from 'lucide-react'
 
 type FilterMode = 'all' | 'Desayuno' | 'Almuerzo' | 'Cena' | 'favorites' | 'easy'
@@ -39,7 +40,7 @@ const EMPTY_FORM: RecipeCreate = {
   user_id: '', workspace_id: null, name: '', meal_type: 'Almuerzo', category: [],
   ingredients_summary: '', preparation_steps: '', time_minutes: 30, difficulty: 'Fácil',
   servings: 2, total_calories: null, total_price: null, rating: null, allergens: [],
-  image_url: null, is_favorite: false,
+  image_url: null, is_public: false, is_favorite: false,
 }
 
 export default function RecipesPage() {
@@ -64,6 +65,11 @@ export default function RecipesPage() {
     }
   })
   const [newCat, setNewCat] = useState('')
+  // Foto elegida en el formulario (se sube al guardar) o marcada para quitar
+  const [pendingImage, setPendingImage] = useState<{ file: File; preview: string } | null>(null)
+  const [removeImage, setRemoveImage] = useState(false)
+  const [photoBusyId, setPhotoBusyId] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const [viewingRecipe, setViewingRecipe] = useState<Recipe | null>(null)
 
   // Ingredientes vinculados a productos
@@ -123,7 +129,44 @@ export default function RecipesPage() {
   function openAdd() {
     editingIdRef.current = null
     setEditing(null); setForm({ ...EMPTY_FORM, user_id: userId ?? '', workspace_id: workspaceId })
+    resetPhotoDraft()
     setSteps([]); setLinkedIngredients([]); setIngredientsLoaded(true); setShowForm(true)
+  }
+
+  function resetPhotoDraft() {
+    setPendingImage(prev => { if (prev) URL.revokeObjectURL(prev.preview); return null })
+    setRemoveImage(false)
+  }
+
+  function pickPhoto(file: File | undefined) {
+    if (!file) return
+    setPendingImage(prev => { if (prev) URL.revokeObjectURL(prev.preview); return { file, preview: URL.createObjectURL(file) } })
+    setRemoveImage(false)
+  }
+
+  // Sube la foto nueva (o quita la actual) y la deja aplicada en la receta; borra del Storage la anterior
+  async function applyPhoto(recipe: Recipe, file: File | null, remove: boolean, isPublic: boolean) {
+    const scopeId = recipe.workspace_id ?? recipe.user_id
+    const newUrl = file ? await uploadRecipeImage(file, scopeId) : remove ? null : recipe.image_url
+    try {
+      await setRecipeImage(recipe.id, newUrl, isPublic)
+    } catch (err) {
+      if (file) await removeRecipeImage(newUrl) // no dejar huérfana la subida
+      throw err
+    }
+    if (recipe.image_url && newUrl !== recipe.image_url) await removeRecipeImage(recipe.image_url)
+    return newUrl
+  }
+
+  // Botón rápido de la tarjeta: cambiar o quitar la foto sin abrir el formulario
+  async function quickPhoto(recipe: Recipe, file: File | null, remove: boolean) {
+    setPhotoBusyId(recipe.id); setPhotoError(null)
+    try {
+      const url = await applyPhoto(recipe, file, remove, recipe.is_public)
+      setRecipes(prev => prev.map(x => x.id === recipe.id ? { ...x, image_url: url } : x))
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'No se pudo guardar la foto')
+    } finally { setPhotoBusyId(null) }
   }
 
   async function loadLinkedIngredients(recipeId: string) {
@@ -143,13 +186,14 @@ export default function RecipesPage() {
 
   function openEdit(r: Recipe) {
     setEditing(r)
+    resetPhotoDraft()
     setForm({
       user_id: r.user_id, workspace_id: r.workspace_id, name: r.name, meal_type: r.meal_type,
       category: r.category, ingredients_summary: r.ingredients_summary ?? '',
       preparation_steps: r.preparation_steps ?? '', time_minutes: r.time_minutes ?? 30,
       difficulty: r.difficulty ?? 'Fácil', servings: r.servings ?? 2,
       total_calories: r.total_calories, total_price: r.total_price, rating: r.rating,
-      allergens: r.allergens, image_url: r.image_url, is_favorite: r.is_favorite,
+      allergens: r.allergens, image_url: r.image_url, is_public: r.is_public, is_favorite: r.is_favorite,
     })
     const parsedSteps = r.preparation_steps?.split('\n').map(s => s.replace(/^\d+\.\s*/, '').trim()).filter(Boolean) ?? []
     setSteps(parsedSteps)
@@ -179,18 +223,18 @@ export default function RecipesPage() {
     if (!form.name.trim() || !userId) return
     setSaving(true)
     try {
+      // La foto y la visibilidad se guardan aparte (set_recipe_image), así cualquier miembro puede cambiarlas
       const payload: RecipeCreate = {
         ...form,
+        image_url: editing?.image_url ?? null,
+        is_public: editing?.is_public ?? false,
         ingredients_summary: buildSummary(),
         preparation_steps: buildStepsText(),
       }
-      let recipeId: string
-      if (editing) {
-        const updated = await updateRecipe(editing.id, payload)
-        recipeId = updated.id
-      } else {
-        const created = await createRecipe(payload)
-        recipeId = created.id
+      const saved = editing ? await updateRecipe(editing.id, payload) : await createRecipe(payload)
+      const recipeId = saved.id
+      if (pendingImage || removeImage || form.is_public !== saved.is_public) {
+        await applyPhoto(saved, pendingImage?.file ?? null, removeImage, form.is_public)
       }
       // Al editar se reescriben siempre (así quitar ingredientes también se guarda),
       // pero solo si los existentes llegaron a cargarse, para no borrarlos por error
@@ -203,6 +247,7 @@ export default function RecipesPage() {
         })))
       }
       await load(userId, workspaceId)
+      resetPhotoDraft()
       setShowForm(false)
     } finally {
       setSaving(false)
@@ -211,7 +256,9 @@ export default function RecipesPage() {
 
   async function handleDelete(id: string) {
     if (!userId || !confirm('¿Eliminar esta receta?')) return
+    const recipe = recipes.find(r => r.id === id)
     await deleteRecipe(id)
+    removeRecipeImage(recipe?.image_url ?? null).catch(() => { /* la receta ya se borró; la foto queda huérfana */ })
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
@@ -253,6 +300,7 @@ export default function RecipesPage() {
       </ChipRow>
 
       <SearchField placeholder="Buscar recetas..." value={search} onChange={e => setSearch(e.target.value)} />
+      {photoError && <p className="text-sm text-danger">{photoError}</p>}
 
       {loading ? (
         <LoadingState />
@@ -267,6 +315,21 @@ export default function RecipesPage() {
                   // eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias
                   <img src={recipe.image_url} alt={recipe.name} className="absolute inset-0 h-full w-full object-cover" />
                 ) : 'FOTO DE RECETA'}
+                <div className="absolute top-2 left-2 flex gap-1.5">
+                  <label aria-label={recipe.image_url ? 'Cambiar foto' : 'Subir foto'} title={recipe.image_url ? 'Cambiar foto' : 'Subir foto'}
+                    className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-ink-2">
+                    {photoBusyId === recipe.id ? <Loader2 className="size-[17px] animate-spin" /> : <Camera className="size-[17px]" />}
+                    <input type="file" accept="image/*" className="sr-only" disabled={photoBusyId === recipe.id}
+                      onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) quickPhoto(recipe, f, false) }} />
+                  </label>
+                  {recipe.image_url && (
+                    <button type="button" aria-label="Quitar foto" title="Quitar foto" disabled={photoBusyId === recipe.id}
+                      onClick={() => quickPhoto(recipe, null, true)}
+                      className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-danger">
+                      <X className="size-[17px]" />
+                    </button>
+                  )}
+                </div>
                 <button onClick={() => handleToggleFavorite(recipe)} aria-label="Favorita"
                   className={`absolute top-2 right-2 grid size-[34px] cursor-pointer place-items-center rounded-full bg-card ${recipe.is_favorite ? 'text-peach-ink' : 'text-ink-3'}`}>
                   <Heart className={`size-[17px] ${recipe.is_favorite ? 'fill-current' : ''}`} />
@@ -334,6 +397,40 @@ export default function RecipesPage() {
           <Field label="Nombre *">
             <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre de la receta" />
           </Field>
+
+          {/* Foto */}
+          <div className="flex flex-col gap-2.5">
+            <Label>Foto</Label>
+            {(() => {
+              const shown = pendingImage?.preview ?? (removeImage ? null : form.image_url)
+              return (
+                <div className="stripes-light relative grid h-40 place-items-center overflow-hidden rounded-2xl font-mono text-[11px] tracking-[0.06em] text-ink-5">
+                  {shown
+                    // eslint-disable-next-line @next/next/no-img-element -- vista previa local (blob:) o URL de Storage
+                    ? <img src={shown} alt="Foto de la receta" className="absolute inset-0 h-full w-full object-cover" />
+                    : 'SIN FOTO'}
+                </div>
+              )
+            })()}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-sage px-4 text-[13.5px] font-semibold text-ink-2 hover:bg-sage-deep">
+                <ImagePlus className="size-4" /> {pendingImage || (form.image_url && !removeImage) ? 'Cambiar foto' : 'Subir foto'}
+                <input type="file" accept="image/*" className="sr-only" onChange={e => { pickPhoto(e.target.files?.[0]); e.target.value = '' }} />
+              </label>
+              {(pendingImage || (form.image_url && !removeImage)) && (
+                <button type="button" className="h-10 cursor-pointer rounded-full px-4 text-[13.5px] font-semibold text-danger hover:bg-danger-soft"
+                  onClick={() => { setPendingImage(prev => { if (prev) URL.revokeObjectURL(prev.preview); return null }); setRemoveImage(!!form.image_url) }}>
+                  Quitar
+                </button>
+              )}
+              <button type="button" onClick={() => setForm(f => ({ ...f, is_public: !f.is_public }))}
+                className={`ml-auto flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-[13.5px] font-semibold transition-colors ${form.is_public ? 'bg-lime text-lime-ink' : 'bg-sage text-ink-3 hover:bg-sage-deep'}`}>
+                {form.is_public ? <Globe className="size-4" /> : <Lock className="size-4" />}
+                {form.is_public ? 'Pública' : 'Privada'}
+              </button>
+            </div>
+            <p className="text-xs text-ink-4">La foto se reduce automáticamente antes de subirla. Pública servirá para publicar la receta en tu perfil más adelante.</p>
+          </div>
 
           {/* Meal type + Favorite */}
           <div className="flex items-end gap-3">

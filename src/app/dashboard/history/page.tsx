@@ -128,26 +128,26 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Historial de cocina">
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Registrar</Button>
       </PageHeader>
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="flex min-h-[150px] flex-col justify-between gap-[18px] rounded-[28px] bg-lime px-6 py-[22px] text-lime-ink">
+        <div className="flex min-h-37.5 flex-col justify-between gap-4.5 rounded-[28px] bg-lime px-6 py-5.5 text-lime-ink">
           <p className="flex items-center gap-2 font-mono text-xs tracking-[0.08em]"><Star className="size-4 fill-current" />VALORACIÓN MEDIA</p>
           <p className="flex items-baseline gap-2 text-forest">
             <span className="font-display text-[56px] leading-none font-extrabold tracking-[-0.03em]">{avgRating != null ? avgRating.toFixed(1) : '–'}</span>
             <span className="text-sm text-lime-ink">de 5</span>
           </p>
         </div>
-        <div className="relative flex min-h-[150px] flex-col justify-between gap-[18px] overflow-hidden rounded-[28px] bg-forest px-6 py-[22px] text-[#f3f7ec]">
-          <div className="stripes absolute -top-[30px] -right-[30px] size-[150px] rounded-full" />
+        <div className="relative flex min-h-37.5 flex-col justify-between gap-4.5 overflow-hidden rounded-[28px] bg-forest px-6 py-5.5 text-[#f3f7ec]">
+          <div className="stripes absolute -top-7.5 -right-7.5 size-37.5 rounded-full" />
           <p className="relative flex items-center gap-2 font-mono text-xs tracking-[0.08em] text-lime"><TrendingUp className="size-4" />MÁS COCINADA</p>
-          <p className="relative min-w-0 font-display text-[clamp(22px,2.4vw,32px)] leading-[1.05] font-extrabold tracking-[-0.02em] [overflow-wrap:anywhere]">{topRecipe?.recipe?.name ?? '–'}</p>
+          <p className="relative min-w-0 font-display text-[clamp(22px,2.4vw,32px)] leading-[1.05] font-extrabold tracking-[-0.02em] wrap-anywhere">{topRecipe?.recipe?.name ?? '–'}</p>
         </div>
-        <div className="flex min-h-[150px] flex-col justify-between gap-[18px] rounded-[28px] bg-card px-6 py-[22px] shadow-card">
+        <div className="flex min-h-37.5 flex-col justify-between gap-4.5 rounded-[28px] bg-card px-6 py-5.5 shadow-card">
           <p className="flex items-center gap-2 font-mono text-xs tracking-[0.08em] text-leaf"><Clock className="size-4" />VECES COCINADAS</p>
           <p className="flex items-baseline gap-2">
             <span className="font-display text-[56px] leading-none font-extrabold tracking-[-0.03em]">{history.length}</span>
@@ -160,7 +160,7 @@ export default function HistoryPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex gap-1.5">
           {(['all', 'top'] as const).map(f => (
-            <Chip key={f} active={filter === f} onClick={() => switchFilter(f)} className="px-4 py-[7px]">
+            <Chip key={f} active={filter === f} onClick={() => switchFilter(f)} className="px-4 py-1.75">
               {f === 'all' ? 'Todas' : 'Top valoradas'}
             </Chip>
           ))}
@@ -180,7 +180,7 @@ export default function HistoryPage() {
               <div key={entry.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-3xl bg-card py-4 pr-5 pl-4 shadow-card">
                 <div className="flex size-16 shrink-0 flex-col items-center justify-center rounded-[18px] bg-canvas leading-none">
                   <span className="font-display text-2xl font-extrabold">{date.getDate()}</span>
-                  <span className="mt-1 text-[11px] font-semibold tracking-[0.1em] text-leaf">{MONTHS[date.getMonth()]}</span>
+                  <span className="mt-1 text-[11px] font-semibold tracking-widest text-leaf">{MONTHS[date.getMonth()]}</span>
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   <h3 className="truncate font-display text-xl font-bold">{entry.recipe?.name ?? '—'}</h3>

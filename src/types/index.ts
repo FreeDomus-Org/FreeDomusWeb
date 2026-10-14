@@ -16,6 +16,7 @@ export interface Recipe {
   rating: number | null
   allergens: string[]
   image_url: string | null
+  is_public: boolean // para publicar por perfil más adelante
   is_favorite: boolean
   created_at: string | null
   updated_at: string | null

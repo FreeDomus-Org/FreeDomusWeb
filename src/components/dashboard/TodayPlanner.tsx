@@ -3,13 +3,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { fetchWeekPlanner, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
+import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
 import { finishRecipe } from '@/lib/services/cookRecipe'
 import { fetchCookedToday } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
 import type { Recipe, WeeklyPlanner } from '@/types'
 import { Button } from '@/components/ui/button'
 import { CenterModal, SearchField, LoadingState } from '@/components/ui/freedomus'
+import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
+import { currentWorkspaceId } from '@/lib/workspace'
 import { Check, Loader2, Pencil, Play, Square, Trash2 } from 'lucide-react'
 
 const MEALS = [
@@ -72,6 +74,7 @@ export default function TodayPlanner() {
   const [pickerSearch, setPickerSearch] = useState('')
   const [recipes, setRecipes] = useState<Recipe[] | null>(null)
   const [planning, setPlanning] = useState(false)
+  const [scope, setScope] = useState<PlannerScope>('all')
 
   const load = useCallback(async (uid: string) => {
     try {
@@ -79,10 +82,10 @@ export default function TodayPlanner() {
       const thisWeek = formatWeekStart(getWeekStart())
       const nextWeek = formatWeekStart(getWeekStart(tomorrowDate()))
       const [week, cooked, tomorrowWeek] = await Promise.all([
-        fetchWeekPlanner(uid, thisWeek),
+        fetchWeekPlannerRaw(uid, thisWeek),
         fetchCookedToday(uid),
         // On Sunday, tomorrow belongs to next week's plan
-        nextWeek === thisWeek ? null : fetchWeekPlanner(uid, nextWeek),
+        nextWeek === thisWeek ? null : fetchWeekPlannerRaw(uid, nextWeek),
       ])
       setToday(week.filter(e => e.day_of_week === dayIndex))
       setTomorrow((tomorrowWeek ?? week).filter(e => e.day_of_week === tomorrowIndex()))
@@ -132,6 +135,8 @@ export default function TodayPlanner() {
 
   async function openPicker(day: PlanDay, meal: string) {
     setPicker({ day, meal }); setPickerSearch(''); setError(null)
+    const current = (day === 'today' ? visibleToday : visibleTomorrow).find(e => e.meal_type === meal && e.recipe_id)
+    setScope(current?.for_user_id ? 'me' : 'all')
     if (recipes || !userId) return
     try {
       const workspaceId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
@@ -142,6 +147,8 @@ export default function TodayPlanner() {
   }
 
   const setDay = (day: PlanDay) => day === 'today' ? setToday : setTomorrow
+  const visibleToday = userId ? visibleEntries(today, userId) : today
+  const visibleTomorrow = userId ? visibleEntries(tomorrow, userId) : tomorrow
 
   async function planMeal(recipe: Recipe) {
     if (!userId || !picker) return
@@ -152,13 +159,14 @@ export default function TodayPlanner() {
       const entry = await upsertPlannerEntry({
         user_id: userId,
         workspace_id: null,
+        for_user_id: scope === 'me' ? userId : null,
         week_start_date: formatWeekStart(getWeekStart(date)),
         day_of_week: (date.getDay() + 6) % 7,
         meal_type: meal,
         recipe_id: recipe.id,
         notes: null,
       })
-      setDay(day)(prev => [...prev.filter(e => e.meal_type !== meal), { ...entry, recipe }])
+      setDay(day)(prev => withEntry(prev, { ...entry, recipe }))
       setPicker(null)
     } catch {
       setError('No se pudo guardar en el planificador. Inténtalo de nuevo.')
@@ -179,7 +187,7 @@ export default function TodayPlanner() {
   }
 
   const pickerEntry = picker
-    ? (picker.day === 'today' ? today : tomorrow).find(e => e.meal_type === picker.meal && e.recipe_id)
+    ? (picker.day === 'today' ? visibleToday : visibleTomorrow).find(e => e.meal_type === picker.meal && e.recipe_id)
     : undefined
   const pickerRecipes = (recipes ?? []).filter(r => r.name.toLowerCase().includes(pickerSearch.toLowerCase()))
 
@@ -188,7 +196,7 @@ export default function TodayPlanner() {
   cookedToday.forEach(id => { remaining[id] = (remaining[id] ?? 0) + 1 })
   const doneEntries = new Set<string>()
   MEALS.forEach(({ key }) => {
-    const entry = today.find(e => e.meal_type === key && e.recipe_id)
+    const entry = visibleToday.find(e => e.meal_type === key && e.recipe_id)
     if (entry?.recipe_id && remaining[entry.recipe_id] > 0) {
       remaining[entry.recipe_id]--
       doneEntries.add(entry.id)
@@ -210,7 +218,7 @@ export default function TodayPlanner() {
               <Link href="/dashboard/planner" className="shrink-0 text-[11px] text-white/55 hover:text-lime">Ver semana →</Link>
             </div>
             {MEALS.map(({ key, label }) => {
-              const name = tomorrow.find(e => e.meal_type === key && e.recipe_id)?.recipe?.name
+              const name = visibleTomorrow.find(e => e.meal_type === key && e.recipe_id)?.recipe?.name
               return (
                 <button key={key} type="button" onClick={() => openPicker('tomorrow', key)}
                   className="group flex cursor-pointer items-center gap-3 rounded-xl px-1.5 py-1.5 text-left text-sm transition-colors hover:bg-white/[0.07]">
@@ -233,7 +241,7 @@ export default function TodayPlanner() {
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-lime" /></div>
         ) : MEALS.map(({ key, label }) => {
-          const entry = today.find(e => e.meal_type === key && e.recipe_id)
+          const entry = visibleToday.find(e => e.meal_type === key && e.recipe_id)
           const running = !!entry && timer?.entryId === entry.id
           const done = !!entry && doneEntries.has(entry.id) && !running
 
@@ -303,6 +311,7 @@ export default function TodayPlanner() {
             </Button>
           )}
         >
+          {currentWorkspaceId() && <ScopeToggle value={scope} onChange={setScope} />}
           <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
           {recipes === null ? (
             <LoadingState className="py-8" />

@@ -38,13 +38,10 @@ export async function deleteWorkspace(id: string): Promise<void> {
 }
 
 export async function fetchMembers(workspaceId: string): Promise<WorkspaceMember[]> {
-  const { data, error } = await createClient()
-    .from('workspace_members')
-    .select('*')
-    .eq('workspace_id', workspaceId)
+  const { data, error } = await createClient().rpc('workspace_members_with_email', { p_workspace_id: workspaceId })
 
   if (error) throw error
-  return data ?? []
+  return (data ?? []) as WorkspaceMember[]
 }
 
 export async function updateMemberRole(workspaceId: string, userId: string, role: WorkspaceRole): Promise<void> {

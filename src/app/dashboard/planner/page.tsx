@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchWeekPlanner, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
+import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
+import { currentWorkspaceId } from '@/lib/workspace'
+import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
 import { fetchRecipes } from '@/lib/services/recipes'
 import type { WeeklyPlanner, Recipe } from '@/types'
 import { PageHeader, IconAction, CenterModal, LoadingState, SearchField } from '@/components/ui/freedomus'
-import { ChevronLeft, ChevronRight, X, Flame } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flame, User } from 'lucide-react'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const MEAL_TYPES = [
@@ -37,13 +39,14 @@ export default function PlannerPage() {
   const [pickerDay, setPickerDay] = useState<number>(0)
   const [pickerMeal, setPickerMeal] = useState<string>('almuerzo')
   const [pickerSearch, setPickerSearch] = useState('')
+  const [pickerScope, setPickerScope] = useState<PlannerScope>('all')
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async (uid: string, ws: Date) => {
     setLoading(true)
     try {
       const [planData, recipesData] = await Promise.all([
-        fetchWeekPlanner(uid, formatWeekStart(ws)),
+        fetchWeekPlannerRaw(uid, formatWeekStart(ws)),
         fetchRecipes(uid, document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null),
       ])
       setPlan(planData)
@@ -59,8 +62,10 @@ export default function PlannerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const visiblePlan = userId ? visibleEntries(plan, userId) : plan
+
   function getEntry(day: number, mealType: string) {
-    return plan.find(e => e.day_of_week === day && e.meal_type === mealType) ?? null
+    return visiblePlan.find(e => e.day_of_week === day && e.meal_type === mealType) ?? null
   }
 
   async function handleSelectRecipe(recipe: Recipe) {
@@ -70,16 +75,14 @@ export default function PlannerPage() {
       const entry = await upsertPlannerEntry({
         user_id: userId,
         workspace_id: null,
+        for_user_id: pickerScope === 'me' ? userId : null,
         week_start_date: formatWeekStart(weekStart),
         day_of_week: pickerDay,
         meal_type: pickerMeal,
         recipe_id: recipe.id,
         notes: null,
       })
-      setPlan(prev => {
-        const filtered = prev.filter(e => !(e.day_of_week === pickerDay && e.meal_type === pickerMeal))
-        return [...filtered, { ...entry, recipe }]
-      })
+      setPlan(prev => withEntry(prev, { ...entry, recipe }))
       setShowPicker(false)
     } finally { setSaving(false) }
   }
@@ -90,7 +93,9 @@ export default function PlannerPage() {
   }
 
   function openPicker(day: number, meal: string) {
-    setPickerDay(day); setPickerMeal(meal); setPickerSearch(''); setShowPicker(true)
+    setPickerDay(day); setPickerMeal(meal); setPickerSearch('')
+    setPickerScope(getEntry(day, meal)?.for_user_id ? 'me' : 'all')
+    setShowPicker(true)
   }
 
   function navigate(dir: number) {
@@ -106,7 +111,7 @@ export default function PlannerPage() {
   }
 
   const filteredRecipes = recipes.filter(r => r.name.toLowerCase().includes(pickerSearch.toLowerCase()))
-  const kcal = totalCalories(plan)
+  const kcal = totalCalories(visiblePlan)
 
   const weekEnd = addDays(weekStart, 6)
   const title = `Semana del ${weekStart.getDate()} de ${weekStart.toLocaleDateString('es-ES', { month: 'long' })}`
@@ -153,6 +158,7 @@ export default function PlannerPage() {
                       <button className="flex-1 cursor-pointer text-left hover:underline" onClick={() => openPicker(dayIdx, key)}>
                         {entry.recipe?.name ?? '...'}
                       </button>
+                      {entry.for_user_id && <User className="absolute right-2 bottom-2 size-3.5 opacity-60" aria-label="Solo para ti" />}
                       <button onClick={() => handleRemove(entry)} aria-label="Quitar"
                         className="absolute top-2 right-2 grid size-6 pointer-coarse:size-8 cursor-pointer place-items-center rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100 hover:text-danger">
                         <X className="size-3 stroke-[2.6]" />
@@ -179,6 +185,7 @@ export default function PlannerPage() {
           subtitle={`${DAYS[pickerDay]} · ${MEAL_TYPES.find(m => m.key === pickerMeal)?.label}`}
           onClose={() => setShowPicker(false)}
         >
+          {currentWorkspaceId() && <ScopeToggle value={pickerScope} onChange={setPickerScope} />}
           <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
           <div className="-mx-2 flex flex-col">
             {filteredRecipes.length === 0 ? (
