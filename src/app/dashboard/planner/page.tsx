@@ -122,7 +122,7 @@ export default function PlannerPage() {
         {kcal > 0 && (
           <span className="flex items-center gap-1.5 rounded-full bg-butter px-3.5 py-2 text-[13px] font-semibold text-butter-ink"><Flame className="size-4" /> {kcal} kcal / semana</span>
         )}
-        <button onClick={goToday} className="cursor-pointer rounded-full bg-card px-4 py-[9px] text-[13px] font-semibold hover:bg-card/70">Hoy</button>
+        <button onClick={goToday} className="cursor-pointer rounded-full bg-card px-4 py-2.25 text-[13px] font-semibold hover:bg-card/70">Hoy</button>
         <IconAction tone="white" onClick={() => navigate(-1)} aria-label="Semana anterior"><ChevronLeft /></IconAction>
         <IconAction tone="white" onClick={() => navigate(1)} aria-label="Semana siguiente"><ChevronRight /></IconAction>
       </PageHeader>
@@ -131,7 +131,7 @@ export default function PlannerPage() {
         <LoadingState />
       ) : (
         <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
-          <div className="flex min-h-[520px] min-w-[860px] flex-col gap-2.5">
+          <div className="flex min-h-130 min-w-215 flex-col gap-2.5">
             <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] gap-2.5">
               <div />
               {DAYS.map((dayName, dayIdx) => {
@@ -139,7 +139,7 @@ export default function PlannerPage() {
                 const isToday = formatShortDate(date) === formatShortDate(new Date())
                 return (
                   <div key={dayIdx} className="flex flex-col items-center gap-1 rounded-[18px] bg-card py-2.5">
-                    <p className="text-[11.5px] font-semibold tracking-[0.1em] text-ink-5 uppercase">{dayName.slice(0, 3)}</p>
+                    <p className="text-[11.5px] font-semibold tracking-widest text-ink-5 uppercase">{dayName.slice(0, 3)}</p>
                     <p className={`grid size-8 place-items-center rounded-full font-display text-base font-extrabold ${isToday ? 'bg-forest text-lime' : ''}`}>{date.getDate()}</p>
                   </div>
                 )

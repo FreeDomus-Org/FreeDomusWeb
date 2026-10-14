@@ -205,7 +205,7 @@ export default function TodayPlanner() {
 
   return (
     <section className="relative flex h-full flex-col justify-between gap-5 overflow-hidden rounded-[28px] bg-forest p-7 text-[#f3f7ec]">
-      <div className="stripes pointer-events-none absolute -top-10 -right-10 size-[260px] rounded-full" />
+      <div className="stripes pointer-events-none absolute -top-10 -right-10 size-65 rounded-full" />
       <div className="relative flex flex-col gap-4">
         <p className="font-mono text-xs tracking-[0.08em] text-lime">PLANIFICADOR · HOY</p>
 
@@ -222,7 +222,7 @@ export default function TodayPlanner() {
               return (
                 <button key={key} type="button" onClick={() => openPicker('tomorrow', key)}
                   className="group flex cursor-pointer items-center gap-3 rounded-xl px-1.5 py-1.5 text-left text-sm transition-colors hover:bg-white/[0.07]">
-                  <span className="w-[72px] shrink-0 text-xs text-white/55">{label}</span>
+                  <span className="w-18 shrink-0 text-xs text-white/55">{label}</span>
                   {name
                     ? <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
                     : <span className="flex-1 text-white/35">Sin planificar</span>}
@@ -248,7 +248,7 @@ export default function TodayPlanner() {
           if (!entry) {
             return (
               <button key={key} type="button" onClick={() => openPicker('today', key)}
-                className="flex cursor-pointer items-center justify-between rounded-2xl bg-white/[0.07] px-4 py-[13px] text-left text-[15px] transition-colors hover:bg-white/[0.12]">
+                className="flex cursor-pointer items-center justify-between rounded-2xl bg-white/[0.07] px-4 py-3.25 text-left text-[15px] transition-colors hover:bg-white/[0.12]">
                 <span>{label}</span>
                 <span className="text-[13px] text-lime">Añadir +</span>
               </button>
@@ -256,7 +256,7 @@ export default function TodayPlanner() {
           }
 
           return (
-            <div key={key} className="rounded-2xl bg-white/[0.07] px-4 py-[13px]">
+            <div key={key} className="rounded-2xl bg-white/[0.07] px-4 py-3.25">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs text-white/55">{label}</p>

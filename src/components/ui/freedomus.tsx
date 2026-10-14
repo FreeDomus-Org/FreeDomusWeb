@@ -40,8 +40,8 @@ export function ChipRow({ className, ...props }: React.ComponentProps<'div'>) {
 
 export function SearchField({ className, tone = 'white', ...props }: React.ComponentProps<'input'> & { tone?: 'white' | 'soft' }) {
   return (
-    <div className={cn('flex h-[38px] w-full max-w-[340px] items-center gap-2.5 rounded-full px-3.5', tone === 'white' ? 'bg-card shadow-field' : 'bg-sage', className)}>
-      <Search className="size-[18px] shrink-0 text-ink-4" />
+    <div className={cn('flex h-9.5 w-full max-w-85 items-center gap-2.5 rounded-full px-3.5', tone === 'white' ? 'bg-card shadow-field' : 'bg-sage', className)}>
+      <Search className="size-4.5 shrink-0 text-ink-4" />
       <input type="text" className="min-w-0 flex-1 border-0 bg-transparent text-[14.5px] font-medium text-foreground outline-none placeholder:font-normal placeholder:text-ink-5" {...props} />
     </div>
   )
@@ -71,7 +71,7 @@ export function NativeSelect({ className, children, ...props }: React.ComponentP
 export function TextArea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return (
     <textarea
-      className={cn('min-h-[110px] w-full resize-none rounded-[14px] border-0 bg-input px-4 py-3 text-[15px] font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/25', className)}
+      className={cn('min-h-27.5 w-full resize-none rounded-[14px] border-0 bg-input px-4 py-3 text-[15px] font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/25', className)}
       {...props}
     />
   )
@@ -84,7 +84,7 @@ export function IconAction({ tone = 'soft', size = 'md', className, ...props }: 
       type="button"
       className={cn(
         'grid shrink-0 cursor-pointer place-items-center rounded-full transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4',
-        size === 'sm' ? 'size-8' : size === 'md' ? 'size-9' : 'size-[38px]',
+        size === 'sm' ? 'size-8' : size === 'md' ? 'size-9' : 'size-9.5',
         tone === 'soft' && 'bg-sage text-foreground hover:bg-sage-deep',
         tone === 'danger' && 'bg-danger-soft text-danger hover:bg-[#ffd3cd]',
         tone === 'white' && 'bg-card text-foreground hover:bg-card/70',
@@ -103,7 +103,7 @@ export function SidePanel({ eyebrow, title, subtitle, onClose, footer, wide, chi
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-forest/45" onClick={onClose} />
-      <aside className={cn('relative flex h-full w-full flex-col bg-card text-foreground shadow-drawer sm:rounded-l-[28px]', wide ? 'max-w-[500px]' : 'max-w-[440px]')}>
+      <aside className={cn('relative flex h-full w-full flex-col bg-card text-foreground shadow-drawer sm:rounded-l-[28px]', wide ? 'max-w-125' : 'max-w-110')}>
         <div className="flex items-center justify-between gap-4 px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-4 sm:px-7 sm:pt-6">
           <div className="min-w-0">
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
@@ -112,7 +112,7 @@ export function SidePanel({ eyebrow, title, subtitle, onClose, footer, wide, chi
           </div>
           <IconAction size="lg" onClick={onClose} aria-label="Cerrar"><X className="stroke-[2.4]" /></IconAction>
         </div>
-        <div className="flex flex-1 flex-col gap-[18px] overflow-y-auto px-5 pt-1 pb-6 sm:px-7">{children}</div>
+        <div className="flex flex-1 flex-col gap-4.5 overflow-y-auto px-5 pt-1 pb-6 sm:px-7">{children}</div>
         {footer && <div className="flex gap-2.5 border-t border-canvas px-5 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-7">{footer}</div>}
       </aside>
     </div>

@@ -48,7 +48,7 @@ export default function SettingsPage() {
 
       {/* Account */}
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2.5"><User className="size-[18px]" /> Cuenta</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><User className="size-4.5" /> Cuenta</CardTitle></CardHeader>
         <CardContent className="flex items-center gap-3.5">
           <div className="grid size-12 shrink-0 place-items-center rounded-full bg-forest font-display text-lg font-bold text-lime">
             {(user?.email ?? '?').charAt(0).toUpperCase()}
@@ -62,7 +62,7 @@ export default function SettingsPage() {
 
       {/* Preferences */}
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2.5"><SlidersHorizontal className="size-[18px]" /> Preferencias</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><SlidersHorizontal className="size-4.5" /> Preferencias</CardTitle></CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Field label="Moneda" hint={selectedCurrency && `Símbolo: ${selectedCurrency.symbol}`} className="max-w-xs">
             <NativeSelect value={currency} onChange={e => handleCurrencyChange(e.target.value)}>
@@ -82,7 +82,7 @@ export default function SettingsPage() {
 
       {/* App info */}
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2.5"><Info className="size-[18px]" /> Aplicación</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><Info className="size-4.5" /> Aplicación</CardTitle></CardHeader>
         <CardContent className="space-y-1 text-sm text-ink-5">
           <p>FreeDomus v1.0</p>
           <p>Plataforma: Web</p>
@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
       {/* Session */}
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2.5"><KeyRound className="size-[18px]" /> Sesión</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2.5"><KeyRound className="size-4.5" /> Sesión</CardTitle></CardHeader>
         <CardContent>
           <Button variant="destructive" onClick={handleLogout}>
             <LogOut /> Cerrar sesión

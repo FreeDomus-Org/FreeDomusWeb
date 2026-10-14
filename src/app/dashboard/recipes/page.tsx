@@ -288,7 +288,7 @@ export default function RecipesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Recetas">
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nueva receta</Button>
       </PageHeader>
@@ -310,29 +310,29 @@ export default function RecipesPage() {
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] content-start gap-3.5">
           {filtered.map(recipe => (
             <div key={recipe.id} className="flex flex-col gap-3.5 rounded-3xl bg-card p-3 shadow-card">
-              <div className="stripes-light relative grid h-[120px] place-items-center overflow-hidden rounded-2xl font-mono text-[11px] tracking-[0.06em] text-ink-5">
+              <div className="stripes-light relative grid h-30 place-items-center overflow-hidden rounded-2xl font-mono text-[11px] tracking-[0.06em] text-ink-5">
                 {recipe.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element -- URLs externas arbitrarias
                   <img src={recipe.image_url} alt={recipe.name} className="absolute inset-0 h-full w-full object-cover" />
                 ) : 'FOTO DE RECETA'}
                 <div className="absolute top-2 left-2 flex gap-1.5">
                   <label aria-label={recipe.image_url ? 'Cambiar foto' : 'Subir foto'} title={recipe.image_url ? 'Cambiar foto' : 'Subir foto'}
-                    className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-ink-2">
-                    {photoBusyId === recipe.id ? <Loader2 className="size-[17px] animate-spin" /> : <Camera className="size-[17px]" />}
+                    className="grid size-8.5 cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-ink-2">
+                    {photoBusyId === recipe.id ? <Loader2 className="size-4.25 animate-spin" /> : <Camera className="size-4.25" />}
                     <input type="file" accept="image/*" className="sr-only" disabled={photoBusyId === recipe.id}
                       onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) quickPhoto(recipe, f, false) }} />
                   </label>
                   {recipe.image_url && (
                     <button type="button" aria-label="Quitar foto" title="Quitar foto" disabled={photoBusyId === recipe.id}
                       onClick={() => quickPhoto(recipe, null, true)}
-                      className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-danger">
-                      <X className="size-[17px]" />
+                      className="grid size-8.5 cursor-pointer place-items-center rounded-full bg-card text-ink-3 hover:text-danger">
+                      <X className="size-4.25" />
                     </button>
                   )}
                 </div>
                 <button onClick={() => handleToggleFavorite(recipe)} aria-label="Favorita"
-                  className={`absolute top-2 right-2 grid size-[34px] cursor-pointer place-items-center rounded-full bg-card ${recipe.is_favorite ? 'text-peach-ink' : 'text-ink-3'}`}>
-                  <Heart className={`size-[17px] ${recipe.is_favorite ? 'fill-current' : ''}`} />
+                  className={`absolute top-2 right-2 grid size-8.5 cursor-pointer place-items-center rounded-full bg-card ${recipe.is_favorite ? 'text-peach-ink' : 'text-ink-3'}`}>
+                  <Heart className={`size-4.25 ${recipe.is_favorite ? 'fill-current' : ''}`} />
                 </button>
               </div>
 
@@ -356,7 +356,7 @@ export default function RecipesPage() {
               </div>
 
               <div className="mt-auto flex items-center gap-2 px-0.5 pb-0.5">
-                <Button className="h-[38px] flex-1 text-[13.5px]" onClick={() => setViewingRecipe(recipe)}>
+                <Button className="h-9.5 flex-1 text-[13.5px]" onClick={() => setViewingRecipe(recipe)}>
                   <Eye /> Ver receta
                 </Button>
                 <IconAction size="lg" onClick={() => openEdit(recipe)} aria-label="Editar"><Edit2 /></IconAction>
@@ -483,7 +483,7 @@ export default function RecipesPage() {
 
             {/* Buscador de producto */}
             <div className="flex h-10 items-center gap-2.5 rounded-xl bg-card px-3.5">
-              <Search className="size-[17px] shrink-0 text-ink-4" />
+              <Search className="size-4.25 shrink-0 text-ink-4" />
               <input
                 value={selectedProduct ? selectedProduct.name : productSearch}
                 onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null) }}
@@ -515,7 +515,7 @@ export default function RecipesPage() {
                 <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}
                   placeholder="Cantidad" className="h-10 w-24 rounded-xl bg-card px-3 text-sm" />
                 <select value={ingUnit} onChange={e => setIngUnit(e.target.value)}
-                  className="h-10 w-[84px] shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
+                  className="h-10 w-21 shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
                   {INGREDIENT_UNITS.map(u => <option key={u}>{u}</option>)}
                 </select>
                 <Input value={ingNotes} onChange={e => setIngNotes(e.target.value)}
@@ -530,9 +530,9 @@ export default function RecipesPage() {
             <Label>Pasos de preparación</Label>
             {steps.map((step, i) => (
               <div key={i} className="flex items-start gap-3 text-sm leading-snug">
-                <div className="grid size-[26px] shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</div>
-                <span className="flex-1 pt-[3px]">{step}</span>
-                <button type="button" className="cursor-pointer pt-[5px] text-danger" onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))} aria-label="Quitar paso">
+                <div className="grid size-6.5 shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</div>
+                <span className="flex-1 pt-0.75">{step}</span>
+                <button type="button" className="cursor-pointer pt-1.25 text-danger" onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))} aria-label="Quitar paso">
                   <X className="size-3 stroke-[2.6]" />
                 </button>
               </div>

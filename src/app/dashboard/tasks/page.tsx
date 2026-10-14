@@ -140,13 +140,13 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Tareas del hogar">
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nueva tarea</Button>
       </PageHeader>
 
       {/* Stats */}
-      <div className="grid max-w-[560px] grid-cols-3 gap-3">
+      <div className="grid max-w-140 grid-cols-3 gap-3">
         <StatTile value={pending} label="Pendientes" />
         <StatTile value={inProgress} label="En progreso" tone="sky" />
         <StatTile value={completed} label="Completadas" tone="lime" />
@@ -223,7 +223,7 @@ export default function TasksPage() {
             <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nombre de la tarea" />
           </Field>
           <Field label="Descripción">
-            <TextArea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="min-h-[80px]" placeholder="Opcional" />
+            <TextArea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="min-h-20" placeholder="Opcional" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Categoría">

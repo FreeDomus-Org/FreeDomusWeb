@@ -15,8 +15,8 @@ const ROLE_COLORS: Record<string, string> = { owner: 'bg-butter text-butter-ink'
 
 function Panel({ icon: Icon, title, children }: { icon: React.ElementType; title: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-4 rounded-3xl bg-card p-[22px] shadow-card">
-      <h2 className="flex items-center gap-2.5 font-display text-[19px] font-bold"><Icon className="size-[18px] stroke-[1.9]" />{title}</h2>
+    <section className="flex flex-col gap-4 rounded-3xl bg-card p-5.5 shadow-card">
+      <h2 className="flex items-center gap-2.5 font-display text-[19px] font-bold"><Icon className="size-4.5 stroke-[1.9]" />{title}</h2>
       {children}
     </section>
   )
@@ -158,7 +158,7 @@ export default function WorkspacePage() {
   const isOwner = userId && selected && workspaces.find(w => w.id === selected.id)?.owner_id === userId
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Espacio de trabajo">
         <Button onClick={openCreate} size="sm"><Plus className="stroke-[2.4]" /> Nuevo espacio de trabajo</Button>
       </PageHeader>
@@ -189,9 +189,9 @@ export default function WorkspacePage() {
                   {ws.owner_id === userId && (
                     <div className="flex shrink-0 gap-1.5">
                       <button onClick={e => { e.stopPropagation(); openEdit(ws) }} aria-label="Editar"
-                        className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-[rgba(127,150,130,.2)]"><Edit2 className="size-[15px]" /></button>
+                        className="grid size-8.5 cursor-pointer place-items-center rounded-full bg-[rgba(127,150,130,.2)]"><Edit2 className="size-3.75" /></button>
                       <button onClick={e => { e.stopPropagation(); handleDeleteWorkspace(ws) }} aria-label="Eliminar"
-                        className="grid size-[34px] cursor-pointer place-items-center rounded-full bg-danger-soft text-danger"><Trash2 className="size-[15px]" /></button>
+                        className="grid size-8.5 cursor-pointer place-items-center rounded-full bg-danger-soft text-danger"><Trash2 className="size-3.75" /></button>
                     </div>
                   )}
                 </div>
@@ -210,7 +210,7 @@ export default function WorkspacePage() {
                 ) : (
                   members.map(member => (
                     <div key={member.id} className="flex items-center gap-3.5">
-                      <div className="grid size-[38px] shrink-0 place-items-center rounded-full bg-canvas font-display text-sm font-extrabold">
+                      <div className="grid size-9.5 shrink-0 place-items-center rounded-full bg-canvas font-display text-sm font-extrabold">
                         {(member.email ?? member.user_id).slice(0, 2).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -234,7 +234,7 @@ export default function WorkspacePage() {
                 <Panel icon={Mail} title="Invitar miembro">
                   <form onSubmit={handleInvite} className="flex gap-2.5">
                     <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@ejemplo.com" className="flex-1" />
-                    <Button type="submit" className="h-11 px-[22px]" disabled={inviting || !inviteEmail.trim()}>
+                    <Button type="submit" className="h-11 px-5.5" disabled={inviting || !inviteEmail.trim()}>
                       {inviting ? <Loader2 className="animate-spin" /> : 'Invitar'}
                     </Button>
                   </form>

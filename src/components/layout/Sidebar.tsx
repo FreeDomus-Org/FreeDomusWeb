@@ -57,8 +57,8 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Logo */}
       <div className="flex items-center justify-between px-2">
         <div className="flex items-center gap-2.5 font-display text-[21px] font-extrabold">
-          <div className="grid size-[34px] place-items-center rounded-full bg-lime">
-            <Home className="size-[18px] stroke-[2.2] text-forest" />
+          <div className="grid size-8.5 place-items-center rounded-full bg-lime">
+            <Home className="size-4.5 stroke-[2.2] text-forest" />
           </div>
           FreeDomus
         </div>
@@ -81,7 +81,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 active ? 'bg-forest text-lime' : 'text-ink-3 hover:bg-sage hover:text-forest'
               )}
             >
-              <Icon className="size-[18px] shrink-0 stroke-[1.9]" />
+              <Icon className="size-4.5 shrink-0 stroke-[1.9]" />
               {label}
             </Link>
           )
@@ -91,7 +91,7 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* Footer */}
       <div className={cn('flex items-center gap-2.5 rounded-2xl p-3', settingsActive ? 'bg-forest text-lime' : 'bg-sage')}>
         <Link href="/dashboard/settings" onClick={() => setOpen(false)} className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div className={cn('grid size-[34px] shrink-0 place-items-center rounded-full font-bold', settingsActive ? 'bg-lime text-forest' : 'bg-forest text-lime')}>
+          <div className={cn('grid size-8.5 shrink-0 place-items-center rounded-full font-bold', settingsActive ? 'bg-lime text-forest' : 'bg-forest text-lime')}>
             {initial}
           </div>
           <div className="min-w-0 text-xs leading-[1.35]">
@@ -139,14 +139,14 @@ export default function Sidebar({ user }: SidebarProps) {
       )}
 
       {/* Sidebar desktop */}
-      <aside className="hidden w-[232px] shrink-0 flex-col gap-[22px] overflow-hidden rounded-3xl bg-card px-3.5 py-[22px] shadow-panel lg:flex">
+      <aside className="hidden w-58 shrink-0 flex-col gap-5.5 overflow-hidden rounded-3xl bg-card px-3.5 py-5.5 shadow-panel lg:flex">
         {sidebarContent}
       </aside>
 
       {/* Sidebar mobile (drawer) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[min(280px,85vw)] flex-col gap-[22px] rounded-r-3xl bg-card px-3.5 pt-[calc(1.375rem+env(safe-area-inset-top))] pb-[calc(1.375rem+env(safe-area-inset-bottom))] shadow-panel transition-transform duration-300 lg:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-[min(280px,85vw)] flex-col gap-5.5 rounded-r-3xl bg-card px-3.5 pt-[calc(1.375rem+env(safe-area-inset-top))] pb-[calc(1.375rem+env(safe-area-inset-bottom))] shadow-panel transition-transform duration-300 lg:hidden',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >

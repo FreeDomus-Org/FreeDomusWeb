@@ -162,8 +162,8 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
           <ol className="flex flex-col gap-2.5">
             {steps.map((step, i) => (
               <li key={i} className="flex items-start gap-3 text-sm leading-snug">
-                <span className="grid size-[26px] shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</span>
-                <span className="pt-[3px]">{step.replace(/^\d+\.\s*/, '')}</span>
+                <span className="grid size-6.5 shrink-0 place-items-center rounded-full bg-lime font-display text-xs font-extrabold text-lime-ink">{i + 1}</span>
+                <span className="pt-0.75">{step.replace(/^\d+\.\s*/, '')}</span>
               </li>
             ))}
           </ol>

@@ -84,7 +84,7 @@ function InfoCard({ icon: Icon, title, subtitle, href, className, children }: {
 }) {
   const header = (
     <div className="flex items-center gap-3">
-      <div className="grid size-[42px] shrink-0 place-items-center rounded-full bg-white/70 text-forest">
+      <div className="grid size-10.5 shrink-0 place-items-center rounded-full bg-white/70 text-forest">
         <Icon className="size-5 stroke-[1.9]" />
       </div>
       <div className="min-w-0">
@@ -94,7 +94,7 @@ function InfoCard({ icon: Icon, title, subtitle, href, className, children }: {
     </div>
   )
   return (
-    <section className={cn('flex min-h-[170px] flex-col gap-4 rounded-[28px] p-5 shadow-tile', className)}>
+    <section className={cn('flex min-h-42.5 flex-col gap-4 rounded-[28px] p-5 shadow-tile', className)}>
       {href ? <Link href={href} className="w-fit hover:opacity-80">{header}</Link> : header}
       {children}
     </section>

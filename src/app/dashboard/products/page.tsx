@@ -109,7 +109,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-[18px]">
+    <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Productos">
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Nuevo producto</Button>
       </PageHeader>
@@ -142,7 +142,7 @@ export default function ProductsPage() {
             return (
               <div key={product.id} className="flex flex-col gap-2.5 rounded-[20px] bg-card p-3.5 shadow-card">
                 <div className="flex items-center gap-3">
-                  <div className={`grid size-[34px] shrink-0 place-items-center rounded-full font-display text-[15px] font-extrabold ${tone}`}>
+                  <div className={`grid size-8.5 shrink-0 place-items-center rounded-full font-display text-[15px] font-extrabold ${tone}`}>
                     {product.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
