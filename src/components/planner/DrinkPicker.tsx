@@ -8,11 +8,14 @@ import { Check, Loader2, Plus } from 'lucide-react'
 
 export const DRINK_CATEGORY = 'Bebidas'
 
-// Segundo paso al planificar una comida: la bebida va aparte de la receta (producto de la categoría Bebidas)
-export function DrinkPicker({ userId, eyebrow, subtitle, currentDrinkId, saving, error, onPick, onClose }: {
+// Segundo paso al planificar una comida: la bebida va aparte de la receta (producto de la categoría Bebidas).
+// También sirve para preparar una bebida suelta (allowNone=false: no hay "Sin bebida").
+export function DrinkPicker({ userId, eyebrow, title, subtitle, allowNone = true, currentDrinkId, saving, error, onPick, onClose }: {
   userId: string
   eyebrow: string
+  title?: string
   subtitle?: string
+  allowNone?: boolean
   currentDrinkId: string | null
   saving: boolean
   error?: string | null
@@ -49,13 +52,13 @@ export function DrinkPicker({ userId, eyebrow, subtitle, currentDrinkId, saving,
     `flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors disabled:opacity-50 ${current ? 'bg-lime/40' : 'hover:bg-sage'}`
 
   return (
-    <CenterModal eyebrow={eyebrow} title={currentDrinkId ? 'Cambiar bebida' : '¿Y para beber?'} subtitle={subtitle} onClose={onClose}>
+    <CenterModal eyebrow={eyebrow} title={title ?? (currentDrinkId ? 'Cambiar bebida' : '¿Y para beber?')} subtitle={subtitle} onClose={onClose}>
       <SearchField tone="soft" className="h-11 max-w-none" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar bebida..." autoFocus />
       {drinks === null ? (
         <LoadingState className="py-8" />
       ) : (
         <div className="-mx-2 flex flex-col">
-          {!term && (
+          {!term && allowNone && (
             <button disabled={busy} onClick={() => onPick(null)} className={row(!currentDrinkId)}>
               <p className="font-display text-[15px] font-bold">Sin bebida</p>
               {!currentDrinkId && <Check className="size-4 shrink-0 stroke-[2.6] text-lime-ink" />}

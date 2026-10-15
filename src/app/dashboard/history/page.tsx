@@ -2,14 +2,18 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchHistory, fetchTopRated, createHistoryEntry, updateHistoryEntry, deleteHistoryEntry } from '@/lib/services/history'
+import { fetchHistory, fetchTopRated, createHistoryEntry, updateHistoryEntry, deleteHistoryEntry, fetchDrinkHistory, deleteDrinkHistoryEntry } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
-import type { CookingHistory, CookingHistoryCreate, Recipe } from '@/types'
+import type { CookingHistory, CookingHistoryCreate, DrinkHistory, Recipe } from '@/types'
+import { formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, SearchField, Field, NativeSelect, TextArea, IconAction, SidePanel, EmptyState, LoadingState, Stars } from '@/components/ui/freedomus'
-import { Plus, Star, Trash2, Edit2, Loader2, TrendingUp, Clock } from 'lucide-react'
+import { Plus, Star, Trash2, Edit2, Loader2, TrendingUp, Clock, CupSoda, Timer } from 'lucide-react'
+
+type HistoryFilter = 'all' | 'top' | 'drinks'
+const FILTER_LABELS: Record<HistoryFilter, string> = { all: 'Todas', top: 'Top valoradas', drinks: 'Bebidas' }
 
 const MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
 
@@ -32,24 +36,27 @@ export default function HistoryPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [history, setHistory] = useState<CookingHistory[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [drinks, setDrinks] = useState<DrinkHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'top'>('all')
+  const [filter, setFilter] = useState<HistoryFilter>('all')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<CookingHistory | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const load = useCallback(async (uid: string, mode: 'all' | 'top' = 'all') => {
+  const load = useCallback(async (uid: string, mode: HistoryFilter = 'all') => {
     setLoading(true)
     try {
       const wsId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
-      const [histData, recipeData] = await Promise.all([
+      const [histData, recipeData, drinkData] = await Promise.all([
         mode === 'top' ? fetchTopRated(uid) : fetchHistory(uid, wsId),
         fetchRecipes(uid, wsId),
+        fetchDrinkHistory(uid, wsId),
       ])
       setHistory(histData)
       setRecipes(recipeData)
+      setDrinks(drinkData)
     } finally { setLoading(false) }
   }, [])
 
@@ -64,6 +71,8 @@ export default function HistoryPage() {
     const name = h.recipe?.name ?? ''
     return name.toLowerCase().includes(search.toLowerCase())
   })
+
+  const filteredDrinks = drinks.filter(d => (d.product?.name ?? '').toLowerCase().includes(search.toLowerCase()))
 
   // Stats
   const rated = history.filter(h => h.rating != null)
@@ -122,9 +131,16 @@ export default function HistoryPage() {
     setHistory(prev => prev.filter(h => h.id !== id))
   }
 
-  async function switchFilter(f: 'all' | 'top') {
+  async function handleDeleteDrink(id: string) {
+    if (!confirm('¿Eliminar este registro?')) return
+    await deleteDrinkHistoryEntry(id)
+    setDrinks(prev => prev.filter(d => d.id !== id))
+  }
+
+  async function switchFilter(f: HistoryFilter) {
     setFilter(f)
-    if (userId) load(userId, f)
+    // Las bebidas ya están cargadas; solo cambia la consulta de recetas
+    if (userId && f !== 'drinks') load(userId, f)
   }
 
   return (
@@ -159,17 +175,51 @@ export default function HistoryPage() {
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">
         <div className="flex gap-1.5">
-          {(['all', 'top'] as const).map(f => (
+          {(['all', 'top', 'drinks'] as const).map(f => (
             <Chip key={f} active={filter === f} onClick={() => switchFilter(f)} className="px-4 py-1.75">
-              {f === 'all' ? 'Todas' : 'Top valoradas'}
+              {FILTER_LABELS[f]}
             </Chip>
           ))}
         </div>
-        <SearchField className="w-full sm:w-80" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por receta..." />
+        <SearchField className="w-full sm:w-80" value={search} onChange={e => setSearch(e.target.value)} placeholder={filter === 'drinks' ? 'Buscar por bebida...' : 'Buscar por receta...'} />
       </div>
 
       {loading ? (
         <LoadingState />
+      ) : filter === 'drinks' ? (
+        filteredDrinks.length === 0 ? (
+          <EmptyState>Aún no has preparado bebidas. Cronometra una desde el inicio con &ldquo;Preparar una bebida&rdquo;.</EmptyState>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {filteredDrinks.map(entry => {
+              const date = new Date(entry.prepared_at)
+              return (
+                <div key={entry.id} className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-3xl bg-card py-4 pr-5 pl-4 shadow-card">
+                  <div className="flex size-16 shrink-0 flex-col items-center justify-center rounded-[18px] bg-canvas leading-none">
+                    <span className="font-display text-2xl font-extrabold">{date.getDate()}</span>
+                    <span className="mt-1 text-[11px] font-semibold tracking-widest text-leaf">{MONTHS[date.getMonth()]}</span>
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    <h3 className="flex items-center gap-2 truncate font-display text-xl font-bold">
+                      <CupSoda className="size-5 shrink-0 text-leaf" />
+                      <span className="truncate">{entry.product?.name ?? '—'}</span>
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2">
+                      <span className="rounded-full bg-sage px-2.5 py-0.5">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5"><Clock className="size-3" />{toTimeInput(date)}</span>
+                    </div>
+                  </div>
+                  {entry.duration_seconds != null && (
+                    <span className="flex items-center gap-1.5 rounded-full bg-lime px-3 py-1 text-sm font-semibold text-lime-ink">
+                      <Timer className="size-4" />{formatDuration(entry.duration_seconds)}
+                    </span>
+                  )}
+                  <IconAction size="lg" tone="danger" onClick={() => handleDeleteDrink(entry.id)} aria-label="Eliminar"><Trash2 /></IconAction>
+                </div>
+              )
+            })}
+          </div>
+        )
       ) : filtered.length === 0 ? (
         <EmptyState>No hay registros aún.</EmptyState>
       ) : (

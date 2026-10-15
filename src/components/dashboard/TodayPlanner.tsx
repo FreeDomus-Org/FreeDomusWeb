@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, setPlannerDrink, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
-import { finishRecipe, pantryAfterCooking, takeDrink, type PantryUse } from '@/lib/services/cookRecipe'
+import { finishRecipe, finishDrink, pantryAfterCooking, takeDrink, type PantryUse } from '@/lib/services/cookRecipe'
 import { fetchCookedToday, startEating, type CookedToday } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
 import type { Product, Recipe, WeeklyPlanner } from '@/types'
@@ -14,6 +14,7 @@ import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle
 import { DrinkPicker } from '@/components/planner/DrinkPicker'
 import { PantryCheckModal } from '@/components/inventory/PantryCheckModal'
 import { currentWorkspaceId } from '@/lib/workspace'
+import { formatDuration } from '@/lib/utils'
 import { Check, CupSoda, Loader2, Pencil, Play, Square, Trash2, Utensils } from 'lucide-react'
 
 const MEALS = [
@@ -23,22 +24,30 @@ const MEALS = [
 ]
 
 const TIMER_KEY = 'freedomus_cooking_timer'
+const DRINK_TIMER_KEY = 'freedomus_drink_timer'
 
 interface Timer { entryId: string; recipeId: string; startedAt: number }
+// Bebida suelta (p. ej. un café), fuera de las comidas: va con su propio cronómetro
+interface DrinkTimer { productId: string; name: string; startedAt: number }
 
-function readTimer(): Timer | null {
+function readStored<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(TIMER_KEY)
-    return raw ? JSON.parse(raw) as Timer : null
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) as T : null
   } catch { return null }
 }
 
-function writeTimer(t: Timer | null) {
+function writeStored(key: string, value: object | null) {
   try {
-    if (t) localStorage.setItem(TIMER_KEY, JSON.stringify(t))
-    else localStorage.removeItem(TIMER_KEY)
+    if (value) localStorage.setItem(key, JSON.stringify(value))
+    else localStorage.removeItem(key)
   } catch { /* storage unavailable: timer just won't survive a reload */ }
 }
+
+const readTimer = () => readStored<Timer>(TIMER_KEY)
+const writeTimer = (t: Timer | null) => writeStored(TIMER_KEY, t)
+const readDrinkTimer = () => readStored<DrinkTimer>(DRINK_TIMER_KEY)
+const writeDrinkTimer = (t: DrinkTimer | null) => writeStored(DRINK_TIMER_KEY, t)
 
 const nowMs = () => Date.now()
 
@@ -84,6 +93,10 @@ export default function TodayPlanner() {
   const [planning, setPlanning] = useState(false)
   const [scope, setScope] = useState<PlannerScope>('all')
   const [pantryUses, setPantryUses] = useState<PantryUse[]>([]) // "¿Cómo quedaron?" tras cocinar
+  const [drinkTimer, setDrinkTimer] = useState<DrinkTimer | null>(readDrinkTimer)
+  const [choosingDrink, setChoosingDrink] = useState(false)
+  const [savingDrink, setSavingDrink] = useState(false)
+  const [lastDrink, setLastDrink] = useState<{ name: string; seconds: number } | null>(null)
 
   const load = useCallback(async (uid: string) => {
     try {
@@ -109,11 +122,12 @@ export default function TodayPlanner() {
     })
   }, [load])
 
+  const ticking = !!timer || !!drinkTimer
   useEffect(() => {
-    if (!timer) return
+    if (!ticking) return
     const id = setInterval(() => setNow(nowMs()), 1000)
     return () => clearInterval(id)
-  }, [timer])
+  }, [ticking])
 
   function start(entry: WeeklyPlanner) {
     if (!entry.recipe_id) return
@@ -141,6 +155,30 @@ export default function TodayPlanner() {
     } catch {
       setError('No se pudo guardar en el historial. Inténtalo de nuevo.')
     } finally { setSaving(false) }
+  }
+
+  function startDrink(drink: Product | null) {
+    if (!drink) return
+    const t = { productId: drink.id, name: drink.name, startedAt: nowMs() }
+    writeDrinkTimer(t); setNow(t.startedAt); setDrinkTimer(t)
+    setChoosingDrink(false); setLastDrink(null); setError(null)
+  }
+
+  function cancelDrink() {
+    writeDrinkTimer(null); setDrinkTimer(null)
+  }
+
+  async function stopDrink() {
+    if (!drinkTimer || !userId) return
+    setSavingDrink(true); setError(null)
+    try {
+      const seconds = Math.round((nowMs() - drinkTimer.startedAt) / 1000)
+      await finishDrink(drinkTimer.productId, userId, workspaceCookie(), seconds)
+      setLastDrink({ name: drinkTimer.name, seconds })
+      writeDrinkTimer(null); setDrinkTimer(null)
+    } catch {
+      setError('No se pudo guardar la bebida. Inténtalo de nuevo.')
+    } finally { setSavingDrink(false) }
   }
 
   // "Empezar a comer" (o "Tomar" si la comida es solo bebida): se apunta como comensal y se toma su bebida
@@ -432,6 +470,49 @@ export default function TodayPlanner() {
             </div>
           )
         })}
+
+        {/* Bebida suelta, fuera de las comidas: se cronometra lo que se tarda en prepararla */}
+        {!loading && (drinkTimer ? (
+          <div className="rounded-2xl bg-white/[0.07] px-4 py-3.25">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-white/55">Preparando bebida</p>
+                <p className="flex items-center gap-1.5 font-medium">
+                  <CupSoda className="size-4 shrink-0 text-white/55" />
+                  <span className="truncate">{drinkTimer.name}</span>
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="font-mono text-lg tabular-nums text-lime">{formatElapsed(now - drinkTimer.startedAt)}</span>
+                <button onClick={stopDrink} disabled={savingDrink}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-full bg-lime px-4 py-2 text-[13px] font-semibold text-forest disabled:opacity-60">
+                  {savingDrink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4 fill-current" />}
+                  Terminar
+                </button>
+              </div>
+            </div>
+            <button onClick={cancelDrink} disabled={savingDrink} className="mt-2 text-xs text-white/60 underline hover:text-white">
+              Cancelar sin guardar
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => { setChoosingDrink(true); setError(null) }}
+            className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-white/20 px-4 py-3 text-left transition-colors hover:bg-white/[0.07]">
+            <span className="flex min-w-0 items-center gap-2.5">
+              <CupSoda className="size-4 shrink-0 text-white/55" />
+              <span className="min-w-0">
+                <span className="block text-[15px]">Preparar una bebida</span>
+                {lastDrink && (
+                  <span className="flex items-center gap-1 text-xs text-white/55">
+                    <Check className="size-3 shrink-0 stroke-[2.6] text-lime" />
+                    <span className="truncate">{lastDrink.name} listo en {formatDuration(lastDrink.seconds)}</span>
+                  </span>
+                )}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[13px] text-lime"><Play className="size-3.5 fill-current" /> Cronometrar</span>
+          </button>
+        ))}
         {error && <p className="text-sm text-red-300">{error}</p>}
       </div>
 
@@ -493,6 +574,20 @@ export default function TodayPlanner() {
           error={error}
           onPick={planDrink}
           onClose={() => setPicker(null)}
+        />
+      )}
+
+      {choosingDrink && userId && (
+        <DrinkPicker
+          userId={userId}
+          eyebrow="Ahora"
+          title="¿Qué vas a preparar?"
+          subtitle="Se cronometra lo que tardas y se descuenta una ración del inventario"
+          allowNone={false}
+          currentDrinkId={null}
+          saving={false}
+          onPick={startDrink}
+          onClose={() => setChoosingDrink(false)}
         />
       )}
 

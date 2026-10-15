@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { CookingHistory, CookingHistoryCreate } from '@/types'
+import type { CookingHistory, CookingHistoryCreate, DrinkHistory } from '@/types'
 import { currentWorkspaceId, workspaceScope } from '@/lib/workspace'
 
 export async function fetchHistory(userId: string, workspaceId?: string | null): Promise<CookingHistory[]> {
@@ -97,5 +97,20 @@ export async function updateHistoryEntry(id: string, updates: Partial<CookingHis
 
 export async function deleteHistoryEntry(id: string): Promise<void> {
   const { error } = await createClient().from('cooking_history').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── Bebidas preparadas fuera de una comida ───────────────────────────────────
+
+export async function fetchDrinkHistory(userId: string, workspaceId?: string | null): Promise<DrinkHistory[]> {
+  let query = createClient().from('drink_history').select('*, product:products(*)').order('prepared_at', { ascending: false })
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId).is('workspace_id', null)
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as DrinkHistory[]
+}
+
+export async function deleteDrinkHistoryEntry(id: string): Promise<void> {
+  const { error } = await createClient().from('drink_history').delete().eq('id', id)
   if (error) throw error
 }

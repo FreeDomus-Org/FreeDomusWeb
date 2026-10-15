@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { RecipeIngredient, Inventory, CookingHistory, WeeklyPlanner, Product, StockLevel } from '@/types'
+import type { RecipeIngredient, Inventory, CookingHistory, DrinkHistory, WeeklyPlanner, Product, StockLevel } from '@/types'
 import { LOOSE_UNITS, STOCK_LEVELS } from '@/types'
 import { workspaceScope } from '@/lib/workspace'
 
@@ -204,11 +204,35 @@ export async function takeDrink(
   if (error) throw error
   if (!marked) return false
 
-  const inventory = await fetchScopedInventory(userId, workspaceId)
-  const stock = sortByExpiry(inventory.filter(i => i.product_id === entry.drink_product_id))
-  const serving = stock.length ? DRINK_SERVING[dimension(stock[0].unit ?? 'ud')] : undefined
-  if (serving) await deductItems([{ product_id: entry.drink_product_id, ...serving }], inventory)
+  await deductDrinkServing(entry.drink_product_id, userId, workspaceId)
   return true
+}
+
+// Bebida preparada fuera de una comida (p. ej. un café): descuenta una ración y la guarda con lo que se tardó
+export async function finishDrink(
+  productId: string,
+  userId: string,
+  workspaceId: string | null,
+  durationSeconds: number | null,
+): Promise<DrinkHistory> {
+  await deductDrinkServing(productId, userId, workspaceId)
+
+  const { data, error } = await createClient().from('drink_history').insert({
+    user_id: userId,
+    workspace_id: workspaceId,
+    product_id: productId,
+    prepared_at: new Date().toISOString(),
+    duration_seconds: durationSeconds,
+  }).select('*, product:products(*)').single()
+  if (error) throw error
+  return data as DrinkHistory
+}
+
+async function deductDrinkServing(productId: string, userId: string, workspaceId: string | null): Promise<void> {
+  const inventory = await fetchScopedInventory(userId, workspaceId)
+  const stock = sortByExpiry(inventory.filter(i => i.product_id === productId))
+  const serving = stock.length ? DRINK_SERVING[dimension(stock[0].unit ?? 'ud')] : undefined
+  if (serving) await deductItems([{ product_id: productId, ...serving }], inventory)
 }
 
 async function deductFromInventory(

@@ -143,6 +143,19 @@ export interface CookingHistory {
 
 export type CookingHistoryCreate = Omit<CookingHistory, 'id' | 'created_at' | 'recipe'>
 
+// ─── Drink History ────────────────────────────────────────────────────────────
+// Bebida preparada fuera de una comida (p. ej. un café), con lo que se tardó
+export interface DrinkHistory {
+  id: string
+  user_id: string
+  workspace_id: string | null
+  product_id: string
+  prepared_at: string
+  duration_seconds: number | null
+  created_at: string
+  product?: Product
+}
+
 // ─── Recipe Ingredient ────────────────────────────────────────────────────────
 export interface RecipeIngredient {
   id: string
