@@ -29,6 +29,11 @@ const DIFFICULTY_TONE: Record<string, string> = {
   Difícil: 'bg-coral text-coral-ink',
 }
 
+const TO_TASTE = 'al gusto'
+
+// "al gusto" no lleva cantidad (se guarda 1 solo para cumplir con la columna)
+const amountLabel = (i: { quantity: number; unit: string }) => i.unit === TO_TASTE ? TO_TASTE : `${i.quantity} ${i.unit}`
+
 interface LinkedIngredient {
   product: Product
   quantity: number
@@ -203,9 +208,11 @@ export default function RecipesPage() {
     setShowForm(true)
   }
 
+  const toTaste = ingUnit === TO_TASTE
+
   function addLinkedIngredient() {
-    if (!selectedProduct || !ingQty) return
-    setLinkedIngredients(prev => [...prev, { product: selectedProduct, quantity: +ingQty, unit: ingUnit, notes: ingNotes }])
+    if (!selectedProduct || (!ingQty && !toTaste)) return
+    setLinkedIngredients(prev => [...prev, { product: selectedProduct, quantity: toTaste ? 1 : +ingQty, unit: ingUnit, notes: ingNotes }])
     setSelectedProduct(null); setProductSearch(''); setIngQty(''); setIngNotes('')
   }
 
@@ -227,7 +234,7 @@ export default function RecipesPage() {
   }
 
   function buildSummary() {
-    return linkedIngredients.map(i => `${i.quantity} ${i.unit} ${i.product.name}`).join('\n')
+    return linkedIngredients.map(i => i.unit === TO_TASTE ? `${i.product.name} ${TO_TASTE}` : `${amountLabel(i)} ${i.product.name}`).join('\n')
   }
 
   function buildStepsText() {
@@ -489,7 +496,7 @@ export default function RecipesPage() {
                 {linkedIngredients.map((ing, i) => (
                   <button key={i} type="button" onClick={() => removeLinkedIngredient(i)}
                     className="flex cursor-pointer items-center gap-2 rounded-full bg-forest px-3 py-1.5 text-[13px] font-semibold text-lime">
-                    {ing.quantity} {ing.unit} — {ing.product.name}
+                    {amountLabel(ing)} — {ing.product.name}
                     <X className="size-3 stroke-[2.6]" />
                   </button>
                 ))}
@@ -510,7 +517,7 @@ export default function RecipesPage() {
               <div className="flex flex-wrap gap-1.5">
                 {productResults.map(p => (
                   <button key={p.id} type="button"
-                    onClick={() => { setSelectedProduct(p); if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch('') }}
+                    onClick={() => { setSelectedProduct(p); if (p.tracking === 'pantry') setIngUnit(TO_TASTE); else if (INGREDIENT_UNITS.includes(p.unit)) setIngUnit(p.unit); setProductSearch('') }}
                     className="flex cursor-pointer items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[13px] font-medium hover:bg-sage">
                     <Plus className="size-3 stroke-[2.4]" />{p.name}
                     <span className="text-xs text-ink-5">{p.unit}</span>
@@ -531,15 +538,17 @@ export default function RecipesPage() {
             {productError && <p className="px-1 text-xs text-danger">{productError}</p>}
             {selectedProduct && (
               <div className="flex items-center gap-2">
-                <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}
-                  placeholder="Cantidad" className="h-10 w-24 rounded-xl bg-card px-3 text-sm" />
+                {!toTaste && (
+                  <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}
+                    placeholder="Cantidad" className="h-10 w-24 rounded-xl bg-card px-3 text-sm" />
+                )}
                 <select value={ingUnit} onChange={e => setIngUnit(e.target.value)}
-                  className="h-10 w-21 shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
+                  className="h-10 w-24 shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
                   {INGREDIENT_UNITS.map(u => <option key={u}>{u}</option>)}
                 </select>
                 <Input value={ingNotes} onChange={e => setIngNotes(e.target.value)}
                   placeholder="Nota (opcional)" className="h-10 flex-1 rounded-xl bg-card px-3 text-sm" />
-                <IconAction tone="dark" size="md" onClick={addLinkedIngredient} disabled={!ingQty} aria-label="Añadir ingrediente"><Plus className="stroke-[2.4]" /></IconAction>
+                <IconAction tone="dark" size="md" onClick={addLinkedIngredient} disabled={!ingQty && !toTaste} aria-label="Añadir ingrediente"><Plus className="stroke-[2.4]" /></IconAction>
               </div>
             )}
           </div>

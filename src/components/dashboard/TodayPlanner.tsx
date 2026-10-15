@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, setPlannerDrink, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
-import { finishRecipe, takeDrink } from '@/lib/services/cookRecipe'
+import { finishRecipe, pantryAfterCooking, takeDrink, type PantryUse } from '@/lib/services/cookRecipe'
 import { fetchCookedToday, startEating, type CookedToday } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
 import type { Product, Recipe, WeeklyPlanner } from '@/types'
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { CenterModal, SearchField, LoadingState } from '@/components/ui/freedomus'
 import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
 import { DrinkPicker } from '@/components/planner/DrinkPicker'
+import { PantryCheckModal } from '@/components/inventory/PantryCheckModal'
 import { currentWorkspaceId } from '@/lib/workspace'
 import { Check, CupSoda, Loader2, Pencil, Play, Square, Trash2, Utensils } from 'lucide-react'
 
@@ -82,6 +83,7 @@ export default function TodayPlanner() {
   const [recipes, setRecipes] = useState<Recipe[] | null>(null)
   const [planning, setPlanning] = useState(false)
   const [scope, setScope] = useState<PlannerScope>('all')
+  const [pantryUses, setPantryUses] = useState<PantryUse[]>([]) // "¿Cómo quedaron?" tras cocinar
 
   const load = useCallback(async (uid: string) => {
     try {
@@ -134,6 +136,8 @@ export default function TodayPlanner() {
         mealType ? { mealType, plannerEntryId: timer.entryId } : undefined)
       setCookedToday(prev => [...prev, { id: historyId, recipe_id: timer.recipeId, planner_entry_id: mealType ? timer.entryId : null, diners: [] }])
       writeTimer(null); setTimer(null)
+      // Si falla solo se pierde la pregunta; la receta ya quedó en el historial
+      pantryAfterCooking(timer.recipeId, userId, workspaceCookie()).then(setPantryUses).catch(() => {})
     } catch {
       setError('No se pudo guardar en el historial. Inténtalo de nuevo.')
     } finally { setSaving(false) }
@@ -491,6 +495,8 @@ export default function TodayPlanner() {
           onClose={() => setPicker(null)}
         />
       )}
+
+      {pantryUses.length > 0 && userId && <PantryCheckModal userId={userId} uses={pantryUses} onClose={() => setPantryUses([])} />}
     </section>
   )
 }

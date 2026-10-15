@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchProducts, searchProducts, createProduct, updateProduct, deleteProduct } from '@/lib/services/products'
-import type { Product, ProductCreate } from '@/types'
+import type { Product, ProductTracking } from '@/types'
+import { PANTRY_CATEGORIES } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +14,10 @@ import { Plus, Trash2, Edit2, Loader2 } from 'lucide-react'
 const PRODUCT_CATEGORIES = ['Frutas', 'Verduras', 'Carnes', 'Lácteos', 'Granos', 'Bebidas', 'Salsas', 'Especias', 'Azúcares', 'Harinas', 'Otros']
 const ALLERGEN_LIST = ['Gluten', 'Lácteos', 'Huevos', 'Frutos secos', 'Mariscos', 'Pescado', 'Soja', 'Sésamo']
 const UNITS = ['g', 'kg', 'ml', 'l', 'ud']
+const TRACKING_OPTIONS: { key: ProductTracking; label: string; hint: string }[] = [
+  { key: 'exact', label: 'Contando o pesando', hint: 'Se descuenta la cantidad exacta al cocinar.' },
+  { key: 'pantry', label: 'A ojo', hint: 'Sal, especias, salsas... Se lleva por nivel (lleno, a la mitad, queda poco) y no se descuenta.' },
+]
 
 const CATEGORY_COLORS: Record<string, string> = {
   Frutas: 'bg-peach text-peach-ink',
@@ -41,6 +46,7 @@ const EMPTY_FORM = {
   fat: null as number | null,
   allergens: [] as string[],
   is_custom: true,
+  tracking: 'exact' as ProductTracking,
 }
 
 export default function ProductsPage() {
@@ -83,7 +89,7 @@ export default function ProductsPage() {
 
   function openEdit(p: Product) {
     setEditing(p)
-    setForm({ workspace_id: p.workspace_id, name: p.name, brand: p.brand, barcode: p.barcode, category: p.category, unit: p.unit, calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, allergens: p.allergens, is_custom: p.is_custom })
+    setForm({ workspace_id: p.workspace_id, name: p.name, brand: p.brand, barcode: p.barcode, category: p.category, unit: p.unit, calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat, allergens: p.allergens, is_custom: p.is_custom, tracking: p.tracking })
     setShowForm(true)
   }
 
@@ -133,7 +139,7 @@ export default function ProductsPage() {
           {filtered.map(product => {
             const tone = CATEGORY_COLORS[product.category] ?? CATEGORY_COLORS.Otros
             const meta = [
-              product.unit,
+              product.tracking === 'pantry' ? 'a ojo' : product.unit,
               product.calories != null && `${product.calories} kcal`,
               product.protein != null && `P:${product.protein}g`,
               product.carbs != null && `C:${product.carbs}g`,
@@ -188,7 +194,10 @@ export default function ProductsPage() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Categoría">
-              <NativeSelect value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              <NativeSelect value={form.category} onChange={e => {
+                const category = e.target.value
+                setForm(f => ({ ...f, category, tracking: PANTRY_CATEGORIES.includes(category) ? 'pantry' : 'exact' }))
+              }}>
                 {PRODUCT_CATEGORIES.map(c => <option key={c}>{c}</option>)}
               </NativeSelect>
             </Field>
@@ -197,6 +206,18 @@ export default function ProductsPage() {
                 {UNITS.map(u => <option key={u}>{u}</option>)}
               </NativeSelect>
             </Field>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Cómo se controla</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {TRACKING_OPTIONS.map(({ key, label }) => (
+                <button key={key} type="button" onClick={() => setForm(f => ({ ...f, tracking: key }))}
+                  className={`h-11 cursor-pointer rounded-full text-[13.5px] font-semibold transition-colors ${form.tracking === key ? 'bg-forest text-lime' : 'bg-sage text-ink-3 hover:bg-sage-deep'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-ink-5">{TRACKING_OPTIONS.find(o => o.key === form.tracking)!.hint}</p>
           </div>
           <div className="flex flex-col gap-3 rounded-[20px] bg-canvas p-4">
             <p className="font-display text-base font-bold">Información nutricional</p>

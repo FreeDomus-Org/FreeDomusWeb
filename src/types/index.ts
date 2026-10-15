@@ -27,9 +27,15 @@ export type RecipeCreate = Omit<Recipe, 'id' | 'created_at' | 'updated_at'>
 export const MEAL_TYPES = ['Desayuno', 'Almuerzo', 'Cena'] as const
 export const DIFFICULTIES = ['Fácil', 'Media', 'Difícil'] as const
 export const DEFAULT_CATEGORIES = ['Pasta', 'Casera', 'Dieta', 'Frío', 'Ensalada', 'Vegetariana', 'Rápida']
-export const INGREDIENT_UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta', 'taza', 'pizca', 'rebanada']
+export const INGREDIENT_UNITS = ['g', 'kg', 'ml', 'l', 'ud', 'cda', 'cdta', 'taza', 'pizca', 'rebanada', 'al gusto']
+// Unidades que se echan a ojo: nunca se descuentan del inventario
+export const LOOSE_UNITS = ['pizca', 'al gusto']
 
 // ─── Product ──────────────────────────────────────────────────────────────────
+// exact: se cuenta o se pesa · pantry: se echa a ojo (sal, especias, salsas...) y se lleva por nivel
+export type ProductTracking = 'exact' | 'pantry'
+export const PANTRY_CATEGORIES = ['Salsas', 'Especias', 'Azúcares']
+
 export interface Product {
   id: string
   user_id: string
@@ -45,10 +51,11 @@ export interface Product {
   fat: number | null
   allergens: string[]
   is_custom: boolean
+  tracking: ProductTracking
   created_at: string
 }
 
-export type ProductCreate = Omit<Product, 'id' | 'created_at'>
+export type ProductCreate = Omit<Product, 'id' | 'created_at' | 'tracking'> & { tracking?: ProductTracking }
 
 // ─── Inventory ────────────────────────────────────────────────────────────────
 export interface Inventory {
@@ -62,13 +69,40 @@ export interface Inventory {
   expiration_date: string | null
   purchase_date: string | null
   purchase_price: number | null
+  stock_level: StockLevel | null // solo productos 'pantry'
   updated_at: string | null
   product?: Product
 }
 
-export type InventoryCreate = Omit<Inventory, 'id' | 'updated_at' | 'product'>
+export type InventoryCreate = Omit<Inventory, 'id' | 'updated_at' | 'product' | 'stock_level'> & { stock_level?: StockLevel | null }
 
 export const LOCATIONS = ['Nevera', 'Despensa', 'Congelador'] as const
+
+export type StockLevel = 'lleno' | 'medio' | 'poco' | 'agotado'
+export const STOCK_LEVELS: { key: StockLevel; label: string }[] = [
+  { key: 'lleno', label: 'Lleno' },
+  { key: 'medio', label: 'A la mitad' },
+  { key: 'poco', label: 'Queda poco' },
+  { key: 'agotado', label: 'Agotado' },
+]
+
+// ─── Shopping List ────────────────────────────────────────────────────────────
+export interface ShoppingListItem {
+  id: string
+  user_id: string
+  workspace_id: string | null
+  product_id: string
+  quantity: number | null // null = sin cantidad
+  unit: string | null
+  checked: boolean // ya va en el carrito
+  created_at: string
+  product?: Product
+}
+
+export type ShoppingListItemCreate = Omit<ShoppingListItem, 'id' | 'created_at' | 'product' | 'checked'>
+
+export const PRODUCT_CATEGORIES = ['Frutas', 'Verduras', 'Carnes', 'Lácteos', 'Granos', 'Bebidas', 'Salsas', 'Especias', 'Azúcares', 'Harinas', 'Otros']
+export const PRODUCT_UNITS = ['g', 'kg', 'ml', 'l', 'ud']
 
 // ─── Weekly Planner ───────────────────────────────────────────────────────────
 export interface WeeklyPlanner {

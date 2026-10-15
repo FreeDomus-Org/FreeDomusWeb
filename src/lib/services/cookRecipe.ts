@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
-import type { RecipeIngredient, Inventory, CookingHistory, WeeklyPlanner } from '@/types'
+import type { RecipeIngredient, Inventory, CookingHistory, WeeklyPlanner, Product, StockLevel } from '@/types'
+import { LOOSE_UNITS, STOCK_LEVELS } from '@/types'
 import { workspaceScope } from '@/lib/workspace'
 
 // ─── Sistema de unidades ───────────────────────────────────────────────────────
@@ -48,7 +49,40 @@ export interface IngredientStatus {
   availableDisplay: string  // legible para el usuario
   neededDisplay: string
   missingDisplay: string
-  status: 'ok' | 'partial' | 'missing' | 'incompatible'
+  status: 'ok' | 'low' | 'partial' | 'missing' | 'incompatible'
+  loose: boolean         // se echa a ojo: solo se mira si hay, no cuánto
+}
+
+// ─── Ingredientes a ojo ───────────────────────────────────────────────────────
+// Productos 'pantry' (sal, especias, salsas...) o cantidades tipo "pizca" / "al gusto":
+// no se comparan cantidades ni se descuentan, se llevan por nivel en el inventario.
+
+export function isLooseIngredient(ing: Pick<RecipeIngredient, 'unit'> & { product?: Pick<Product, 'tracking'> | null }): boolean {
+  return ing.product?.tracking === 'pantry' || LOOSE_UNITS.includes(ing.unit)
+}
+
+const LEVEL_RANK: Record<StockLevel, number> = { agotado: 0, poco: 1, medio: 2, lleno: 3 }
+
+// Sin nivel (producto que se cuenta o pesa) cuenta como lleno si queda algo
+function levelOf(item: Inventory): StockLevel {
+  if (item.stock_level) return item.stock_level
+  return item.quantity > 0 ? 'lleno' : 'agotado'
+}
+
+const levelLabel = (level: StockLevel) => STOCK_LEVELS.find(l => l.key === level)!.label
+
+function looseStatus(ing: RecipeIngredient, matching: Inventory[]): IngredientStatus {
+  const inStock = matching.filter(i => levelOf(i) !== 'agotado')
+  const best = inStock.reduce<StockLevel>((acc, i) => LEVEL_RANK[levelOf(i)] > LEVEL_RANK[acc] ? levelOf(i) : acc, 'agotado')
+  const neededDisplay = ing.unit === 'al gusto' ? 'al gusto' : `${ing.quantity} ${ing.unit}`
+  return {
+    ingredient: ing, inventoryItems: inStock,
+    available: inStock.length, needed: 1,
+    availableDisplay: levelLabel(best).toLowerCase(),
+    neededDisplay, missingDisplay: 'reponer',
+    status: best === 'agotado' ? 'missing' : best === 'poco' ? 'low' : 'ok',
+    loose: true,
+  }
 }
 
 function humanize(base: number, unit: string): string {
@@ -91,6 +125,7 @@ export async function checkIngredients(
     const matching = ((inventory ?? []) as Inventory[]).filter(
       item => item.product_id === ing.product_id
     )
+    if (isLooseIngredient(ing)) return looseStatus(ing, matching)
 
     const needed = toBase(ing.quantity, ing.unit)
     const neededDisplay = humanize(needed, ing.unit)
@@ -106,6 +141,7 @@ export async function checkIngredients(
         availableDisplay: 'unidades incompatibles',
         neededDisplay, missingDisplay: neededDisplay,
         status: 'incompatible' as const,
+        loose: false,
       }
     }
 
@@ -118,7 +154,7 @@ export async function checkIngredients(
     const missingDisplay = humanize(missing, ing.unit)
 
     const status = available === 0 ? 'missing' : available < needed ? 'partial' : 'ok'
-    return { ingredient: ing, inventoryItems: compatible, available, needed, availableDisplay, neededDisplay, missingDisplay, status }
+    return { ingredient: ing, inventoryItems: compatible, available, needed, availableDisplay, neededDisplay, missingDisplay, status, loose: false }
   })
 }
 
@@ -184,12 +220,48 @@ async function deductFromInventory(
 
   const { data: ings } = await supabase
     .from('recipe_ingredients')
-    .select('*')
+    .select('*, product:products(tracking)')
     .eq('recipe_id', recipeId)
 
-  if (!ings || ings.length === 0) return
+  // Lo que se echa a ojo no se descuenta: después de cocinar se pregunta cómo quedó (pantryAfterCooking)
+  const exact = ((ings ?? []) as RecipeIngredient[]).filter(ing => !isLooseIngredient(ing))
+  if (exact.length === 0) return
 
-  await deductItems(ings as RecipeIngredient[], await fetchScopedInventory(userId, workspaceId))
+  await deductItems(exact, await fetchScopedInventory(userId, workspaceId))
+}
+
+// ─── Después de cocinar: ¿cómo quedaron los productos a ojo? ──────────────────
+
+export interface PantryUse {
+  product: Product
+  item: Inventory   // envase en uso: el más gastado
+  others: number    // otros envases del mismo producto que aún quedan
+}
+
+export async function pantryAfterCooking(
+  recipeId: string,
+  userId: string,
+  workspaceId: string | null
+): Promise<PantryUse[]> {
+  const { data: ings } = await createClient()
+    .from('recipe_ingredients')
+    .select('*, product:products(*)')
+    .eq('recipe_id', recipeId)
+
+  const products = new Map<string, Product>()
+  for (const ing of (ings ?? []) as RecipeIngredient[]) {
+    if (ing.product?.tracking === 'pantry') products.set(ing.product_id, ing.product)
+  }
+  if (products.size === 0) return []
+
+  const inventory = await fetchScopedInventory(userId, workspaceId)
+  const uses: PantryUse[] = []
+  for (const [productId, product] of products) {
+    const rows = sortByExpiry(inventory.filter(i => i.product_id === productId && levelOf(i) !== 'agotado'))
+      .sort((a, b) => LEVEL_RANK[levelOf(a)] - LEVEL_RANK[levelOf(b)])
+    if (rows.length) uses.push({ product, item: rows[0], others: rows.length - 1 })
+  }
+  return uses
 }
 
 async function fetchScopedInventory(userId: string, workspaceId: string | null): Promise<Inventory[]> {

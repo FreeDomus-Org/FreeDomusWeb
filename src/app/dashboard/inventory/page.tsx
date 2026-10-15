@@ -2,16 +2,22 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchInventory, fetchInventoryByLocation, createInventoryItem, updateInventoryItem, deleteInventoryItem, reportDamagedItem } from '@/lib/services/inventory'
+import { fetchInventory, fetchInventoryByLocation, createInventoryItem, updateInventoryItem, deleteInventoryItem, reportDamagedItem, setStockLevel, markProductOut } from '@/lib/services/inventory'
 import { searchProducts, createProduct } from '@/lib/services/products'
-import type { Inventory, InventoryCreate, Product } from '@/types'
+import type { Inventory, InventoryCreate, Product, StockLevel } from '@/types'
 import { LOCATIONS, INGREDIENT_UNITS } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, CenterModal, EmptyState, LoadingState, StatTile } from '@/components/ui/freedomus'
-import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX, ScanLine } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX, PackageMinus, ScanLine } from 'lucide-react'
 import { ScanReceiptModal } from '@/components/inventory/ScanReceiptModal'
+import { StockLevelPicker } from '@/components/inventory/StockLevelPicker'
+
+const RESTOCK = 'restock' // filtro "Por reponer": productos a ojo con poco o agotados
+
+const isPantry = (product: Product | null | undefined) => product?.tracking === 'pantry'
+const needsRestock = (item: Inventory) => item.stock_level === 'poco' || item.stock_level === 'agotado'
 
 const LOCATION_COLORS: Record<string, string> = {
   Nevera: 'bg-sky text-sky-ink',
@@ -53,6 +59,7 @@ const EMPTY_FORM = {
   expiration_date: '',
   purchase_date: '',
   purchase_price: '' as string | number,
+  stock_level: 'lleno' as StockLevel,
 }
 
 export default function InventoryPage() {
@@ -89,7 +96,7 @@ export default function InventoryPage() {
   useEffect(() => {
     if (!userId) return
     const timer = setTimeout(async () => {
-      if (locationFilter !== 'all') setItems(await fetchInventoryByLocation(userId, locationFilter))
+      if (locationFilter !== 'all' && locationFilter !== RESTOCK) setItems(await fetchInventoryByLocation(userId, locationFilter))
       else load(userId)
     }, 0)
     return () => clearTimeout(timer)
@@ -106,8 +113,11 @@ export default function InventoryPage() {
 
   const filtered = items.filter(i => {
     const name = i.product?.name ?? ''
+    if (locationFilter === RESTOCK && !needsRestock(i)) return false
     return name.toLowerCase().includes(search.toLowerCase())
   })
+  const restockCount = items.filter(needsRestock).length
+  const pantryForm = isPantry(selectedProduct)
 
   const expiringCount = items.filter(i => { const d = daysUntilExpiry(i.expiration_date); return d !== null && d <= 7 }).length
 
@@ -125,6 +135,7 @@ export default function InventoryPage() {
       expiration_date: toDateInput(item.expiration_date),
       purchase_date: toDateInput(item.purchase_date),
       purchase_price: item.purchase_price ?? '',
+      stock_level: item.stock_level ?? 'lleno',
     })
     setSelectedProduct(item.product ?? null)
     setProductSearch(item.product?.name ?? '')
@@ -144,12 +155,14 @@ export default function InventoryPage() {
         user_id: editing?.user_id ?? userId,
         workspace_id: editing?.workspace_id ?? null,
         product_id: productId,
-        quantity: Number(form.quantity),
-        unit: form.unit || null,
+        // En los productos a ojo el contenido del envase es opcional
+        quantity: Number(form.quantity) || 1,
+        unit: Number(form.quantity) ? form.unit || null : 'ud',
         location: form.location || null,
         expiration_date: form.expiration_date || null,
         purchase_date: form.purchase_date || null,
         purchase_price: form.purchase_price !== '' ? Number(form.purchase_price) : null,
+        stock_level: pantryForm ? form.stock_level : null,
       }
 
       if (editing) await updateInventoryItem(editing.id, payload)
@@ -163,6 +176,25 @@ export default function InventoryPage() {
     if (!userId || !confirm('¿Eliminar este elemento del inventario?')) return
     await deleteInventoryItem(id)
     setItems(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function handleLevel(item: Inventory, level: StockLevel) {
+    if (!userId) return
+    // Con un filtro de ubicación puede haber otros envases que no se están viendo
+    const all = locationFilter === 'all' || locationFilter === RESTOCK ? items : await fetchInventory(userId)
+    const others = all.filter(i => i.id !== item.id && i.product_id === item.product_id && i.stock_level !== 'agotado').length
+    const updated = await setStockLevel(userId, item, level, others)
+    setItems(prev => updated
+      ? prev.map(i => i.id === updated.id ? updated : i)
+      : prev.filter(i => i.id !== item.id))
+  }
+
+  // "Se acabó": sale todo lo del producto y se apunta en la lista de compras
+  async function handleRunOut(item: Inventory) {
+    if (!userId || !item.product) return
+    if (!confirm(`¿Se acabó "${item.product.name}"? Se quitará del inventario y se apuntará en la lista de compras.`)) return
+    await markProductOut(userId, item.product)
+    setItems(prev => prev.filter(i => i.product_id !== item.product_id))
   }
 
   function openDamaged(item: Inventory) {
@@ -207,6 +239,9 @@ export default function InventoryPage() {
             {loc === 'all' ? 'Todo' : loc}
           </Chip>
         ))}
+        <Chip active={locationFilter === RESTOCK} onClick={() => setLocationFilter(RESTOCK)}>
+          Por reponer{restockCount > 0 && ` (${restockCount})`}
+        </Chip>
       </ChipRow>
 
       <SearchField placeholder="Buscar por producto..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -214,12 +249,13 @@ export default function InventoryPage() {
       {loading ? (
         <LoadingState />
       ) : filtered.length === 0 ? (
-        <EmptyState>El inventario está vacío.</EmptyState>
+        <EmptyState>{locationFilter === RESTOCK ? 'No hay nada por reponer.' : 'El inventario está vacío.'}</EmptyState>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] content-start gap-3.5">
           {filtered.map(item => {
             const days = daysUntilExpiry(item.expiration_date)
             const expiring = days !== null && days <= 7
+            const pantry = isPantry(item.product)
             return (
               <div key={item.id} className="flex flex-col gap-3.5 rounded-3xl bg-card p-4.5 shadow-card">
                 <div className="flex items-start justify-between gap-2.5">
@@ -228,19 +264,28 @@ export default function InventoryPage() {
                       {expiring && <AlertTriangle className="size-4.5 shrink-0 text-danger" />}
                       <h3 className="truncate">{item.product?.name ?? '—'}</h3>
                     </div>
-                    <p className="mt-0.5 text-[13px] text-ink-5">{item.quantity} {item.unit}</p>
+                    <div className="mt-0.5 flex items-center gap-2 text-[13px] text-ink-5">
+                      {pantry ? 'A ojo' : `${item.quantity} ${item.unit}`}
+                      {!pantry && (
+                        <button type="button" onClick={() => handleRunOut(item)}
+                          className="flex cursor-pointer items-center gap-1 rounded-full bg-sage px-2 py-0.5 text-[11.5px] font-semibold text-ink-3 hover:bg-danger-soft hover:text-danger">
+                          <PackageMinus className="size-3" /> Se acabó
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {item.location && (
                     <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${LOCATION_COLORS[item.location] ?? 'bg-stone text-stone-ink'}`}>{item.location}</span>
                   )}
                 </div>
+                {pantry && <StockLevelPicker value={item.stock_level} onChange={level => handleLevel(item, level)} />}
                 <div className="flex items-center gap-2.5 text-[12.5px] text-ink-2">
                   <ExpiryBadge dateStr={item.expiration_date} />
                   {item.expiration_date ? `Caduca ${parseLocalDate(item.expiration_date).toLocaleDateString('es-ES')}` : 'Sin caducidad'}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="outline" className="h-9 flex-1" onClick={() => openEdit(item)}><Edit2 /> Editar</Button>
-                  <Button size="sm" variant="outline" className="h-9" title="Marcar como dañado" onClick={() => openDamaged(item)}><PackageX /> Dañado</Button>
+                  {!pantry && <Button size="sm" variant="outline" className="h-9" title="Marcar como dañado" onClick={() => openDamaged(item)}><PackageX /> Dañado</Button>}
                   <IconAction tone="danger" onClick={() => handleDelete(item.id)} aria-label="Eliminar"><Trash2 /></IconAction>
                 </div>
               </div>
@@ -286,7 +331,7 @@ export default function InventoryPage() {
           onClose={() => setShowForm(false)}
           footer={<>
             <Button variant="outline" size="lg" className="flex-1" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button size="lg" className="flex-[1.2]" onClick={handleSave} disabled={saving || (!form.product_id && !selectedProduct) || !(Number(form.quantity) > 0)}>
+            <Button size="lg" className="flex-[1.2]" onClick={handleSave} disabled={saving || (!form.product_id && !selectedProduct) || !(pantryForm || Number(form.quantity) > 0)}>
               {saving && <Loader2 className="animate-spin" />}
               {editing ? 'Guardar cambios' : 'Añadir'}
             </Button>
@@ -319,8 +364,16 @@ export default function InventoryPage() {
             )}
           </div>
 
+          {pantryForm && (
+            <div className="flex flex-col gap-2">
+              <Label>Nivel</Label>
+              <StockLevelPicker value={form.stock_level} onChange={level => setForm(f => ({ ...f, stock_level: level }))} />
+              <p className="text-xs text-ink-5">Se echa a ojo: no se descuenta al cocinar, solo se lleva el nivel.</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cantidad">
+            <Field label={pantryForm ? 'Contenido (opcional)' : 'Cantidad'}>
               <Input type="number" min={0} step="0.1" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" />
             </Field>
             <Field label="Unidad">

@@ -11,6 +11,7 @@ import {
   BookOpen,
   ShoppingBag,
   Archive,
+  ShoppingCart,
   Calendar,
   Clock,
   // CheckSquare, // Tareas oculto temporalmente
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/dashboard/recipes', label: 'Recetas', icon: BookOpen },
   { href: '/dashboard/products', label: 'Productos', icon: ShoppingBag },
   { href: '/dashboard/inventory', label: 'Inventario', icon: Archive },
+  { href: '/dashboard/shopping', label: 'Lista de compras', icon: ShoppingCart },
   { href: '/dashboard/planner', label: 'Planificador', icon: Calendar },
   { href: '/dashboard/history', label: 'Historial', icon: Clock },
   // Tareas oculto temporalmente: falta la tabla household_tasks en Supabase

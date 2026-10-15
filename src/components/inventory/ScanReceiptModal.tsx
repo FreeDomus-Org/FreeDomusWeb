@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input'
 import { CenterModal, Field, NativeSelect, IconAction } from '@/components/ui/freedomus'
 import { cn } from '@/lib/utils'
 import { scanReceipt } from '@/lib/receipt/scan'
-import { isValidBarcode, type ItemField } from '@/lib/receipt/parse'
-import { fetchProductsByBarcodes, createProduct } from '@/lib/services/products'
+import { isValidBarcode, type ItemField, type ScannedItem } from '@/lib/receipt/parse'
+import { matchProducts } from '@/lib/receipt/match'
+import { fetchProductsByBarcodes, createProduct, updateProduct } from '@/lib/services/products'
 import { createInventoryItems } from '@/lib/services/inventory'
 import { LOCATIONS, INGREDIENT_UNITS } from '@/types'
-import type { Product } from '@/types'
+import type { Product, ShoppingListItem } from '@/types'
 
 interface Row {
   id: number
@@ -21,10 +22,14 @@ interface Row {
   unit: string
   location: string
   total: string
-  /** Producto del catálogo con el mismo código de barras */
+  /** Producto del catálogo con el mismo código de barras (o el de la lista de compras) */
   product: Product | null
   /** Campos que el OCR no leyó con seguridad; se limpian al editarlos */
   doubtful: ItemField[]
+  /** Renglón que viene de la lista de compras */
+  listItemId: string | null
+  /** Iba en el carrito pero no se encontró en la factura */
+  missing: boolean
 }
 
 const ISSUE_TEXT: Record<ItemField, string> = {
@@ -37,7 +42,7 @@ const ISSUE_TEXT: Record<ItemField, string> = {
 // Problemas de un renglón: lo que el OCR marcó como dudoso + lo que no es válido
 function rowProblems(row: Row): { fields: Set<ItemField>; messages: string[] } {
   const fields = new Set<ItemField>(row.doubtful)
-  const messages = row.doubtful.map(f => ISSUE_TEXT[f])
+  const messages = row.doubtful.map(f => f === 'price' && row.missing ? 'No aparece en la factura: pon el precio o pulsa Está bien' : ISSUE_TEXT[f])
   const add = (field: ItemField, message: string) => { if (!fields.has(field)) { fields.add(field); messages.push(message) } }
   if (!row.product && !row.description.trim()) add('description', 'Falta el nombre')
   if (row.code && !isValidBarcode(row.code)) add('code', 'Código de barras inválido (bórralo si no lo tienes)')
@@ -47,7 +52,31 @@ function rowProblems(row: Row): { fields: Set<ItemField>; messages: string[] } {
 }
 
 let nextId = 1
-const emptyRow = (): Row => ({ id: nextId++, description: '', code: '', quantity: '1', unit: 'ud', location: 'Despensa', total: '', product: null, doubtful: [] })
+const emptyRow = (): Row => ({ id: nextId++, description: '', code: '', quantity: '1', unit: 'ud', location: 'Despensa', total: '', product: null, doubtful: [], listItemId: null, missing: false })
+
+const COLD_CATEGORIES = ['Lácteos', 'Carnes']
+const defaultLocation = (product: Product | null) => product && COLD_CATEGORIES.includes(product.category) ? 'Nevera' : 'Despensa'
+
+// Renglón de algo que iba en el carrito; si se leyó la factura, con el precio de su renglón
+function listRow(entry: ShoppingListItem, item: ScannedItem | undefined, scanned: boolean): Row {
+  const product = entry.product!
+  const unit = entry.unit ?? product.unit
+  // La cantidad de la factura solo vale si viene en la misma unidad que la lista
+  const receiptQuantity = item?.quantity != null && item.unit === unit
+  return {
+    id: nextId++,
+    description: product.name,
+    code: product.barcode ?? (item?.code && isValidBarcode(item.code) ? item.code : ''),
+    quantity: receiptQuantity ? String(item!.quantity) : String(entry.quantity ?? 1),
+    unit,
+    location: defaultLocation(product),
+    total: item?.total == null ? '' : String(item.total),
+    product,
+    doubtful: item ? item.doubtful.filter(f => f === 'price' || (receiptQuantity && f === 'quantity')) : scanned ? ['price'] : [],
+    listItemId: entry.id,
+    missing: scanned && !item,
+  }
+}
 
 function Cell({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
@@ -61,10 +90,14 @@ function Cell({ label, className, children }: { label: string; className?: strin
 const compact = 'h-9 rounded-[10px] px-3 text-sm'
 const bad = 'ring-2 ring-danger focus-visible:ring-danger'
 
-export function ScanReceiptModal({ userId, onClose, onImported }: {
+// Sin shoppingItems: escanea una compra y la pasa al inventario.
+// Con shoppingItems (lo que iba en el carrito): termina la compra de la lista; la foto es opcional y solo pone precios.
+export function ScanReceiptModal({ userId, shoppingItems, onClose, onImported }: {
   userId: string
+  shoppingItems?: ShoppingListItem[]
   onClose: () => void
-  onImported: (count: number) => void
+  /** listItemIds: renglones de la lista que pasaron al inventario */
+  onImported: (count: number, listItemIds: string[]) => void
 }) {
   const [step, setStep] = useState<'pick' | 'scanning' | 'review'>('pick')
   const [progress, setProgress] = useState({ status: '', value: 0 })
@@ -95,7 +128,7 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
       // Los códigos que ya están en tu catálogo se enlazan solos
       const codes = receipt.items.map(i => i.code).filter((c): c is string => !!c && isValidBarcode(c))
       const known = new Map((await fetchProductsByBarcodes(userId, codes)).map(p => [p.barcode, p]))
-      setRows(receipt.items.map(item => {
+      const scannedRows = receipt.items.map((item): Row => {
         const product = (item.code && known.get(item.code)) || null
         return {
           id: nextId++,
@@ -103,12 +136,25 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
           code: item.code ?? '',
           quantity: item.quantity === null ? '' : String(item.quantity),
           unit: product?.unit ?? item.unit,
-          location: 'Despensa',
+          location: defaultLocation(product),
           total: item.total === null ? '' : String(item.total),
           product,
           doubtful: product ? item.doubtful.filter(f => f !== 'description') : item.doubtful,
+          listItemId: null,
+          missing: false,
         }
-      }))
+      })
+      if (shoppingItems) {
+        const matches = matchProducts(shoppingItems.map(e => e.product!), receipt.items)
+        const used = new Set(matches.values())
+        setRows([
+          ...shoppingItems.map((entry, i) => listRow(entry, matches.has(i) ? receipt.items[matches.get(i)!] : undefined, true)),
+          // Lo que se compró sin estar en la lista también entra al inventario
+          ...scannedRows.filter((_, i) => !used.has(i)),
+        ])
+      } else {
+        setRows(scannedRows)
+      }
       setPurchaseDate(receipt.date ?? new Date().toISOString().slice(0, 10))
       setStep('review')
     } catch (e) {
@@ -118,12 +164,19 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
     }
   }
 
+  function skipPhoto() {
+    setRows(shoppingItems!.map(entry => listRow(entry, undefined, false)))
+    setPurchaseDate(new Date().toISOString().slice(0, 10))
+    setError(null)
+    setStep('review')
+  }
+
   function updateRow(id: number, field: ItemField | null, changes: Partial<Row>) {
     setRows(prev => prev.map(r => r.id !== id ? r : {
       ...r,
       ...changes,
-      // Al cambiar el código se pierde el enlace al producto del catálogo
-      product: 'code' in changes ? null : r.product,
+      // Al cambiar el código se pierde el enlace al producto del catálogo (salvo lo de la lista, que ya es ese producto)
+      product: 'code' in changes && !r.listItemId ? null : r.product,
       doubtful: changes.doubtful ?? (field ? r.doubtful.filter(f => f !== field) : r.doubtful),
     }))
   }
@@ -157,10 +210,15 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
           expiration_date: null,
           purchase_date: purchaseDate || null,
           purchase_price: row.total !== '' ? Number(row.total) : null,
+          // Lo que se echa a ojo entra lleno; al cocinar se lleva por nivel
+          stock_level: product.tracking === 'pantry' ? 'lleno' as const : null,
         })
       }
       await createInventoryItems(items)
-      onImported(items.length)
+      // Lo de la lista que no tenía código se queda con el de la factura: la próxima vez se enlaza solo
+      await Promise.allSettled(rows.filter(r => r.listItemId && r.product && !r.product.barcode && r.code)
+        .map(r => updateProduct(r.product!.id, { barcode: r.code })))
+      onImported(items.length, rows.flatMap(r => r.listItemId ? [r.listItemId] : []))
     } catch (e) {
       console.error(e)
       setError('No se pudieron guardar los productos. Inténtalo de nuevo.')
@@ -168,16 +226,16 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
   }
 
   function restart() {
-    setRows([]); setError(null); setShowPhoto(false); setStep('pick')
+    setRows([]); setError(null); setShowPhoto(false); setPhotoUrl(null); setStep('pick')
   }
 
   const total = rows.reduce((sum, r) => sum + (Number(r.total) || 0), 0)
 
   return (
     <CenterModal
-      eyebrow="Inventario"
-      title="Escanear compra"
-      subtitle={step === 'review' ? `${rows.length} productos · Total $${total.toLocaleString('es-CO')}` : 'Foto de la tirilla o pantallazo de la factura electrónica'}
+      eyebrow={shoppingItems ? 'Lista de compras' : 'Inventario'}
+      title={shoppingItems ? 'Terminar compra' : 'Escanear compra'}
+      subtitle={step === 'review' ? `${rows.length} productos · Total $${total.toLocaleString('es-CO')}` : shoppingItems ? '¿Le tomas foto a la factura para poner los precios?' : 'Foto de la tirilla o pantallazo de la factura electrónica'}
       onClose={saving ? () => {} : onClose}
       className={step === 'review' ? 'max-w-5xl' : 'max-w-lg'}
       footer={step === 'review' ? <>
@@ -198,6 +256,12 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
       )}
 
       {step === 'pick' && <>
+        {shoppingItems && (
+          <p className="text-sm text-ink-3">
+            Llevas <b>{shoppingItems.length} {shoppingItems.length === 1 ? 'producto' : 'productos'}</b> en el carrito.
+            Con la foto les pongo el precio y agrego lo que compraste por fuera de la lista. Sin foto puedes poner los precios a mano o dejarlos vacíos.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={() => cameraInput.current?.click()}
             className="flex cursor-pointer flex-col items-center gap-2 rounded-3xl bg-forest px-4 py-6 text-lime transition-colors hover:bg-forest/90">
@@ -210,6 +274,9 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
             <span className="text-sm font-semibold">Subir imagen</span>
           </button>
         </div>
+        {shoppingItems && (
+          <Button variant="outline" size="lg" onClick={skipPhoto}>Seguir sin foto</Button>
+        )}
         <ul className="flex list-disc flex-col gap-1 pl-5 text-[13px] text-ink-5">
           <li>Pon la tirilla estirada sobre una superficie lisa y con buena luz.</li>
           <li>Que se vea completa la parte de los productos, sin sombras encima.</li>
@@ -254,10 +321,14 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
           <Field label="Fecha de compra" className="w-44">
             <Input type="date" className={compact} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
           </Field>
-          <Button variant="outline" size="sm" className="h-9" onClick={() => setShowPhoto(v => !v)}>
-            {showPhoto ? <EyeOff /> : <Eye />} {showPhoto ? 'Ocultar foto' : 'Ver foto'}
+          {photoUrl && (
+            <Button variant="outline" size="sm" className="h-9" onClick={() => setShowPhoto(v => !v)}>
+              {showPhoto ? <EyeOff /> : <Eye />} {showPhoto ? 'Ocultar foto' : 'Ver foto'}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-9" onClick={restart}>
+            {photoUrl ? <><RotateCcw /> Escanear otra</> : <><Camera /> Escanear factura</>}
           </Button>
-          <Button variant="outline" size="sm" className="h-9" onClick={restart}><RotateCcw /> Escanear otra</Button>
         </div>
 
         {showPhoto && photoUrl && (
@@ -280,7 +351,9 @@ export function ScanReceiptModal({ userId, onClose, onImported }: {
                     {row.product ? (
                       <div className="flex h-9 items-center gap-2 px-1 text-sm font-semibold">
                         <span className="truncate">{row.product.name}</span>
-                        <span className="shrink-0 rounded-full bg-mint px-2 py-0.5 text-[10.5px] font-semibold text-mint-ink">En tu catálogo</span>
+                        {row.listItemId
+                          ? <span className="shrink-0 rounded-full bg-lime px-2 py-0.5 text-[10.5px] font-semibold text-lime-ink">De tu lista</span>
+                          : <span className="shrink-0 rounded-full bg-mint px-2 py-0.5 text-[10.5px] font-semibold text-mint-ink">En tu catálogo</span>}
                       </div>
                     ) : (
                       <Input className={cn(compact, fields.has('description') && bad)} value={row.description} placeholder="Nombre del producto"
