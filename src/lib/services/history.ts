@@ -32,6 +32,7 @@ export async function fetchHistorySince(userId: string, since: Date): Promise<Co
 
 export interface CookedToday {
   id: string
+  user_id: string // quien lo cocinó
   recipe_id: string
   planner_entry_id: string | null
   diners: { user_id: string; ate_at: string }[]
@@ -42,7 +43,7 @@ export async function fetchCookedToday(userId: string): Promise<CookedToday[]> {
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const end = new Date(start); end.setDate(end.getDate() + 1)
   const workspaceId = currentWorkspaceId()
-  let query = createClient().from('cooking_history').select('id, recipe_id, planner_entry_id, diners:cooking_history_diners(user_id, ate_at)')
+  let query = createClient().from('cooking_history').select('id, user_id, recipe_id, planner_entry_id, diners:cooking_history_diners(user_id, ate_at)')
   query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
   const { data, error } = await query
     .gte('cooked_at', start.toISOString())
@@ -98,6 +99,30 @@ export async function updateHistoryEntry(id: string, updates: Partial<CookingHis
 export async function deleteHistoryEntry(id: string): Promise<void> {
   const { error } = await createClient().from('cooking_history').delete().eq('id', id)
   if (error) throw error
+}
+
+// ─── Sobras: porciones guardadas que aún no se han comido ──────────────────────
+
+export async function fetchLeftovers(userId: string, workspaceId: string | null = currentWorkspaceId()): Promise<CookingHistory[]> {
+  let query = createClient().from('cooking_history').select('*, recipe:recipes(*)').gt('leftover_servings', 0)
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId).is('workspace_id', null)
+  const { data, error } = await query.order('cooked_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as CookingHistory[]
+}
+
+// Comer o tirar porciones. Devuelve las que quedan (0 si ya no quedaba ninguna).
+export async function takeLeftovers(historyId: string, servings: number): Promise<number> {
+  const { data, error } = await createClient().rpc('take_leftovers', { p_history_id: historyId, p_servings: servings })
+  if (error) throw error
+  return (data as number | null) ?? 0
+}
+
+// Comida de sobras planificada: el usuario actual se come su porción. Devuelve false si ya se la había comido.
+export async function eatPlannedLeftovers(entryId: string): Promise<boolean> {
+  const { data, error } = await createClient().rpc('eat_planned_leftovers', { p_entry_id: entryId })
+  if (error) throw error
+  return !!data
 }
 
 // ─── Bebidas preparadas fuera de una comida ───────────────────────────────────

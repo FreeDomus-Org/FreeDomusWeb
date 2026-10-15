@@ -4,15 +4,18 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchInventory, fetchInventoryByLocation, createInventoryItem, updateInventoryItem, deleteInventoryItem, reportDamagedItem, setStockLevel, markProductOut } from '@/lib/services/inventory'
 import { searchProducts, createProduct } from '@/lib/services/products'
-import type { Inventory, InventoryCreate, Product, StockLevel } from '@/types'
+import { fetchLeftovers, takeLeftovers } from '@/lib/services/history'
+import type { CookingHistory, Inventory, InventoryCreate, Product, StockLevel } from '@/types'
 import { LOCATIONS, INGREDIENT_UNITS } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, CenterModal, EmptyState, LoadingState, StatTile } from '@/components/ui/freedomus'
-import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX, PackageMinus, ScanLine } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX, PackageMinus, ScanLine, Refrigerator, Utensils } from 'lucide-react'
 import { ScanReceiptModal } from '@/components/inventory/ScanReceiptModal'
 import { StockLevelPicker } from '@/components/inventory/StockLevelPicker'
+import { portionsLabel } from '@/components/recipes/FinishCookingModal'
+import { cookedAgo } from '@/components/planner/LeftoverOptions'
 
 const RESTOCK = 'restock' // filtro "Por reponer": productos a ojo con poco o agotados
 
@@ -80,11 +83,17 @@ export default function InventoryPage() {
   const [damagedQty, setDamagedQty] = useState<string | number>('')
   const [reportingDamage, setReportingDamage] = useState(false)
   const [showScan, setShowScan] = useState(false)
+  const [leftovers, setLeftovers] = useState<CookingHistory[]>([])
+  const [takingLeftover, setTakingLeftover] = useState<string | null>(null)
 
   const load = useCallback(async (uid: string) => {
     setLoading(true)
     try { setItems(await fetchInventory(uid)) } finally { setLoading(false) }
   }, [])
+
+  useEffect(() => {
+    if (userId) fetchLeftovers(userId).then(setLeftovers).catch(() => {})
+  }, [userId])
 
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
@@ -214,6 +223,18 @@ export default function InventoryPage() {
     } finally { setReportingDamage(false) }
   }
 
+  // Comer una porción de las sobras, o tirarlas todas
+  async function handleTakeLeftover(h: CookingHistory, all: boolean) {
+    if (all && !confirm(`¿Tirar las sobras de "${h.recipe?.name ?? 'Receta'}"?`)) return
+    setTakingLeftover(h.id)
+    try {
+      const remaining = await takeLeftovers(h.id, all ? h.leftover_servings ?? 0 : 1)
+      setLeftovers(prev => remaining > 0
+        ? prev.map(l => l.id === h.id ? { ...l, leftover_servings: remaining } : l)
+        : prev.filter(l => l.id !== h.id))
+    } finally { setTakingLeftover(null) }
+  }
+
   async function handleCreateAndSelectProduct(name: string) {
     if (!userId) return
     const p = await createProduct({ user_id: userId, workspace_id: null, name, brand: null, barcode: null, category: 'Otros', unit: 'g', calories: null, protein: null, carbs: null, fat: null, allergens: [], is_custom: true })
@@ -245,6 +266,32 @@ export default function InventoryPage() {
       </ChipRow>
 
       <SearchField placeholder="Buscar por producto..." value={search} onChange={e => setSearch(e.target.value)} />
+
+      {/* Sobras: porciones cocinadas que se guardaron en la nevera */}
+      {leftovers.length > 0 && (locationFilter === 'all' || locationFilter === 'Nevera') && (
+        <section className="flex flex-col gap-2.5">
+          <h2 className="flex items-center gap-2 px-1 font-mono text-xs tracking-[0.08em] text-leaf uppercase"><Refrigerator className="size-4" /> Sobras</h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
+            {leftovers.map(h => (
+              <div key={h.id} className="flex flex-col gap-3 rounded-3xl bg-card p-4.5 shadow-card">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-display text-[19px] font-bold">{h.recipe?.name ?? 'Receta'}</h3>
+                    <p className="mt-0.5 text-[13px] text-ink-5">{portionsLabel(h.leftover_servings ?? 0)} · cocinado {cookedAgo(h.cooked_at)}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11.5px] font-semibold ${LOCATION_COLORS.Nevera}`}>Nevera</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="h-9 flex-1" disabled={takingLeftover === h.id} onClick={() => handleTakeLeftover(h, false)}>
+                    {takingLeftover === h.id ? <Loader2 className="animate-spin" /> : <Utensils />} Comer una
+                  </Button>
+                  <IconAction tone="danger" disabled={takingLeftover === h.id} onClick={() => handleTakeLeftover(h, true)} aria-label="Tirar sobras" title="Tirar"><Trash2 /></IconAction>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {loading ? (
         <LoadingState />

@@ -8,7 +8,7 @@ const fail = (e: { message?: string; details?: string; hint?: string; code?: str
   throw new Error([e.message, e.details, e.hint, e.code && `(${e.code})`].filter(Boolean).join(' · ') || 'Error en el planificador')
 }
 
-const PLANNER_SELECT = '*, recipe:recipes!weekly_planner_recipe_id_fkey(*), drink:products!weekly_planner_drink_product_id_fkey(*)'
+const PLANNER_SELECT = '*, recipe:recipes!weekly_planner_recipe_id_fkey(*), drink:products!weekly_planner_drink_product_id_fkey(*), leftover:cooking_history!weekly_planner_leftover_history_id_fkey(id, leftover_servings, cooked_at)'
 
 const normalize = (e: WeeklyPlanner): WeeklyPlanner => ({ ...e, day_of_week: Number(e.day_of_week) })
 
@@ -43,9 +43,16 @@ export function withEntry(entries: WeeklyPlanner[], entry: WeeklyPlanner): Weekl
   return [...entries.filter(e => !(e.day_of_week === entry.day_of_week && e.meal_type === entry.meal_type && e.for_user_id === entry.for_user_id)), entry]
 }
 
-// Por defecto el plato es para todo el espacio de trabajo actual (for_user_id null)
+// Por defecto el plato es para todo el espacio de trabajo actual (for_user_id null).
+// Replanificar un hueco empieza de cero con las sobras (si no se indican, deja de ser comida de sobras).
 export async function upsertPlannerEntry(entry: WeeklyPlannerCreate): Promise<WeeklyPlanner> {
-  const row = { ...entry, workspace_id: entry.workspace_id ?? currentWorkspaceId(), for_user_id: entry.for_user_id ?? null }
+  const row = {
+    ...entry,
+    workspace_id: entry.workspace_id ?? currentWorkspaceId(),
+    for_user_id: entry.for_user_id ?? null,
+    leftover_history_id: entry.leftover_history_id ?? null,
+    leftovers_eaten_by: [],
+  }
   const { data, error } = await createClient()
     .from('weekly_planner')
     .upsert(row, { onConflict: 'workspace_id,week_start_date,day_of_week,meal_type,for_user_id' })

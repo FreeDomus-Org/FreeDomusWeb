@@ -4,13 +4,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchHistory, fetchTopRated, createHistoryEntry, updateHistoryEntry, deleteHistoryEntry, fetchDrinkHistory, deleteDrinkHistoryEntry } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
-import type { CookingHistory, CookingHistoryCreate, DrinkHistory, Recipe } from '@/types'
+import { fetchMembers } from '@/lib/services/workspace'
+import { memberLabel } from '@/lib/workspace'
+import type { CookingHistory, CookingHistoryCreate, DrinkHistory, Recipe, WorkspaceMember } from '@/types'
 import { formatDuration } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, SearchField, Field, NativeSelect, TextArea, IconAction, SidePanel, EmptyState, LoadingState, Stars } from '@/components/ui/freedomus'
-import { Plus, Star, Trash2, Edit2, Loader2, TrendingUp, Clock, CupSoda, Timer } from 'lucide-react'
+import { Plus, Star, Trash2, Edit2, Loader2, TrendingUp, Clock, CupSoda, Timer, ChefHat, Refrigerator } from 'lucide-react'
 
 type HistoryFilter = 'all' | 'top' | 'drinks'
 const FILTER_LABELS: Record<HistoryFilter, string> = { all: 'Todas', top: 'Top valoradas', drinks: 'Bebidas' }
@@ -37,6 +39,7 @@ export default function HistoryPage() {
   const [history, setHistory] = useState<CookingHistory[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [drinks, setDrinks] = useState<DrinkHistory[]>([])
+  const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<HistoryFilter>('all')
@@ -49,14 +52,17 @@ export default function HistoryPage() {
     setLoading(true)
     try {
       const wsId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
-      const [histData, recipeData, drinkData] = await Promise.all([
+      const [histData, recipeData, drinkData, memberData] = await Promise.all([
         mode === 'top' ? fetchTopRated(uid) : fetchHistory(uid, wsId),
         fetchRecipes(uid, wsId),
         fetchDrinkHistory(uid, wsId),
+        // Sin miembros solo se pierde el "por quién"
+        wsId ? fetchMembers(wsId).catch(() => []) : [],
       ])
       setHistory(histData)
       setRecipes(recipeData)
       setDrinks(drinkData)
+      setMembers(memberData)
     } finally { setLoading(false) }
   }, [])
 
@@ -237,7 +243,9 @@ export default function HistoryPage() {
                   <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-2">
                     <span className="rounded-full bg-sage px-2.5 py-0.5">{date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                     <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5"><Clock className="size-3" />{toTimeInput(date)}</span>
+                    {members.length > 1 && <span className="flex items-center gap-1 rounded-full bg-sage px-2.5 py-0.5"><ChefHat className="size-3" />por {memberLabel(members, entry.user_id, userId)}</span>}
                     {entry.servings && <span className="rounded-full bg-sage px-2.5 py-0.5">{entry.servings} porciones</span>}
+                    {!!entry.leftover_servings && <span className="flex items-center gap-1 rounded-full bg-sky px-2.5 py-0.5 text-sky-ink"><Refrigerator className="size-3" />{entry.leftover_servings} en sobras</span>}
                     {entry.actual_time_minutes && <span className="rounded-full bg-sage px-2.5 py-0.5">{entry.actual_time_minutes} min</span>}
                   </div>
                   {entry.feedback && <p className="text-xs text-ink-5 italic">&ldquo;{entry.feedback}&rdquo;</p>}

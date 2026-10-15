@@ -6,11 +6,13 @@ import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, set
 import { currentWorkspaceId } from '@/lib/workspace'
 import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
 import { DrinkPicker } from '@/components/planner/DrinkPicker'
+import { LeftoverOptions } from '@/components/planner/LeftoverOptions'
 import { fetchRecipes } from '@/lib/services/recipes'
-import type { WeeklyPlanner, Recipe, Product } from '@/types'
+import { fetchLeftovers } from '@/lib/services/history'
+import type { WeeklyPlanner, Recipe, Product, CookingHistory } from '@/types'
 import { Button } from '@/components/ui/button'
 import { PageHeader, IconAction, CenterModal, LoadingState, SearchField } from '@/components/ui/freedomus'
-import { ChevronLeft, ChevronRight, X, Flame, User, CupSoda } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flame, User, CupSoda, Refrigerator } from 'lucide-react'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const MEAL_TYPES = [
@@ -37,6 +39,7 @@ export default function PlannerPage() {
   const [plan, setPlan] = useState<WeeklyPlanner[]>([])
   const [loading, setLoading] = useState(true)
   const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [leftovers, setLeftovers] = useState<CookingHistory[]>([])
   const [showPicker, setShowPicker] = useState(false)
   const [pickerDay, setPickerDay] = useState<number>(0)
   const [pickerMeal, setPickerMeal] = useState<string>('almuerzo')
@@ -50,12 +53,15 @@ export default function PlannerPage() {
   const load = useCallback(async (uid: string, ws: Date) => {
     setLoading(true)
     try {
-      const [planData, recipesData] = await Promise.all([
+      const wsId = document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null
+      const [planData, recipesData, leftoverData] = await Promise.all([
         fetchWeekPlannerRaw(uid, formatWeekStart(ws)),
-        fetchRecipes(uid, document.cookie.match(/workspace_id=([^;]+)/)?.[1] ?? null),
+        fetchRecipes(uid, wsId),
+        fetchLeftovers(uid, wsId).catch(() => []),
       ])
       setPlan(planData)
       setRecipes(recipesData)
+      setLeftovers(leftoverData)
     } finally { setLoading(false) }
   }, [])
 
@@ -90,6 +96,28 @@ export default function PlannerPage() {
       setPlan(prev => withEntry(prev, { ...entry, recipe }))
       setShowPicker(false)
       openDrinkPicker(entry.id) // segundo paso: la bebida va aparte de la receta
+    } finally { setSaving(false) }
+  }
+
+  // Comida de sobras: no se cocina, cada uno se come una porción de lo guardado
+  async function handleSelectLeftover(leftover: CookingHistory) {
+    if (!userId) return
+    setSaving(true)
+    try {
+      const entry = await upsertPlannerEntry({
+        user_id: userId,
+        workspace_id: null,
+        for_user_id: pickerScope === 'me' ? userId : null,
+        week_start_date: formatWeekStart(weekStart),
+        day_of_week: pickerDay,
+        meal_type: pickerMeal,
+        recipe_id: leftover.recipe_id,
+        leftover_history_id: leftover.id,
+        notes: null,
+      })
+      setPlan(prev => withEntry(prev, { ...entry, recipe: leftover.recipe }))
+      setShowPicker(false)
+      openDrinkPicker(entry.id)
     } finally { setSaving(false) }
   }
 
@@ -204,7 +232,9 @@ export default function PlannerPage() {
                   return entry ? (
                     <div key={dayIdx} className={`group relative flex min-h-24 flex-col gap-1.5 rounded-[20px] p-3 text-[13.5px] leading-tight font-semibold ${cell}`}>
                       <button className="flex-1 cursor-pointer pr-5 text-left hover:underline" onClick={() => openPicker(dayIdx, key)}>
-                        {entry.recipe_id
+                        {entry.leftover_history_id
+                          ? <span className="flex items-start gap-1.5"><Refrigerator className="mt-px size-3.5 shrink-0" /><span>Sobras · {entry.recipe?.name ?? '...'}</span></span>
+                          : entry.recipe_id
                           ? entry.recipe?.name ?? '...'
                           : <span className="flex items-center gap-1.5"><CupSoda className="size-3.5 shrink-0" />{entry.drink?.name ?? '...'}</span>}
                       </button>
@@ -249,6 +279,7 @@ export default function PlannerPage() {
         >
           {currentWorkspaceId() && <ScopeToggle value={pickerScope} onChange={setPickerScope} />}
           <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
+          {!pickerSearch && <LeftoverOptions leftovers={leftovers} currentId={pickerEntry?.leftover_history_id ?? null} disabled={saving} onPick={handleSelectLeftover} />}
           <div className="-mx-2 flex flex-col">
             {filteredRecipes.length === 0 ? (
               <p className="py-8 text-center text-sm text-ink-5">No hay recetas disponibles.</p>

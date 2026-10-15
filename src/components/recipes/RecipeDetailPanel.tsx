@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { checkIngredients, finishRecipe, pantryAfterCooking, type IngredientStatus, type PantryUse } from '@/lib/services/cookRecipe'
+import { checkIngredients, finishRecipe, defaultPortions, pantryAfterCooking, type IngredientStatus, type PantryUse } from '@/lib/services/cookRecipe'
 import { markProductOut } from '@/lib/services/inventory'
 import { CheckCircle2, AlertCircle, XCircle, ShoppingCart, ChefHat, Loader2, RefreshCw, PackageMinus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SidePanel, LoadingState } from '@/components/ui/freedomus'
 import { PantryCheckModal } from '@/components/inventory/PantryCheckModal'
+import { FinishCookingModal } from '@/components/recipes/FinishCookingModal'
 import type { Product, Recipe } from '@/types'
 
 interface Props {
@@ -29,6 +30,8 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
   const [statuses, setStatuses] = useState<IngredientStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [finishing, setFinishing] = useState(false)
+  const [askPortions, setAskPortions] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
   const [finished, setFinished] = useState(false)
   const [pantryUses, setPantryUses] = useState<PantryUse[]>([])
   const [runningOut, setRunningOut] = useState<string | null>(null) // producto que se está marcando como acabado
@@ -50,15 +53,17 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
   const canCook = statuses.length > 0 && statuses.every(s => s.status === 'ok' || s.status === 'low')
   const hasLinkedIngredients = statuses.length > 0
 
-  async function handleFinish() {
-    if (!confirm(`¿Confirmas que terminaste de cocinar "${recipe.name}"? Se descontarán los ingredientes del inventario.`)) return
-    setFinishing(true)
+  // Se pregunta cuántas porciones salieron: se descuenta en proporción y lo que se guarda queda en Sobras
+  async function handleFinish({ servings, leftovers }: { servings: number; leftovers: number }) {
+    setFinishing(true); setFinishError(null)
     try {
-      await finishRecipe(recipe.id, userId, workspaceId)
-      setFinished(true)
+      await finishRecipe(recipe, userId, workspaceId, { servings, leftovers })
+      setFinished(true); setAskPortions(false)
       onFinished()
       // Si falla solo se pierde la pregunta; la receta ya quedó terminada
       pantryAfterCooking(recipe.id, userId, workspaceId).then(setPantryUses).catch(() => {})
+    } catch {
+      setFinishError('No se pudo terminar la receta. Inténtalo de nuevo.')
     } finally {
       setFinishing(false)
     }
@@ -104,7 +109,7 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
                   Faltan ingredientes, pero igual puedes marcar la receta como terminada.
                 </p>
               )}
-              <Button size="lg" className="w-full" onClick={handleFinish} disabled={finishing}>
+              <Button size="lg" className="w-full" onClick={() => setAskPortions(true)} disabled={finishing}>
                 {finishing
                   ? <><Loader2 className="animate-spin" /> Procesando...</>
                   : <><ChefHat /> Terminar receta</>
@@ -201,6 +206,17 @@ export default function RecipeDetailPanel({ recipe, userId, workspaceId, onClose
           </section>
         )}
       </SidePanel>
+      {askPortions && (
+        <FinishCookingModal
+          recipeName={recipe.name}
+          recipeServings={recipe.servings}
+          defaults={defaultPortions(recipe.servings, 1)}
+          saving={finishing}
+          error={finishError}
+          onConfirm={handleFinish}
+          onClose={() => setAskPortions(false)}
+        />
+      )}
       {pantryUses.length > 0 && <PantryCheckModal userId={userId} uses={pantryUses} onClose={() => setPantryUses([])} />}
     </>
   )

@@ -4,18 +4,21 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, setPlannerDrink, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
-import { finishRecipe, finishDrink, pantryAfterCooking, takeDrink, type PantryUse } from '@/lib/services/cookRecipe'
-import { fetchCookedToday, startEating, type CookedToday } from '@/lib/services/history'
+import { finishRecipe, finishDrink, defaultPortions, pantryAfterCooking, takeDrink, type PantryUse } from '@/lib/services/cookRecipe'
+import { fetchCookedToday, fetchLeftovers, eatPlannedLeftovers, startEating, type CookedToday } from '@/lib/services/history'
 import { fetchRecipes } from '@/lib/services/recipes'
-import type { Product, Recipe, WeeklyPlanner } from '@/types'
+import { fetchMembers } from '@/lib/services/workspace'
+import type { CookingHistory, Product, Recipe, WeeklyPlanner, WorkspaceMember } from '@/types'
 import { Button } from '@/components/ui/button'
 import { CenterModal, SearchField, LoadingState } from '@/components/ui/freedomus'
 import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
 import { DrinkPicker } from '@/components/planner/DrinkPicker'
+import { LeftoverOptions } from '@/components/planner/LeftoverOptions'
 import { PantryCheckModal } from '@/components/inventory/PantryCheckModal'
-import { currentWorkspaceId } from '@/lib/workspace'
+import { FinishCookingModal } from '@/components/recipes/FinishCookingModal'
+import { currentWorkspaceId, memberLabel } from '@/lib/workspace'
 import { formatDuration } from '@/lib/utils'
-import { Check, CupSoda, Loader2, Pencil, Play, Square, Trash2, Utensils } from 'lucide-react'
+import { Check, CupSoda, Loader2, Pencil, Play, Refrigerator, Square, Trash2, Utensils } from 'lucide-react'
 
 const MEALS = [
   { key: 'desayuno', label: 'Desayuno' },
@@ -97,21 +100,30 @@ export default function TodayPlanner() {
   const [choosingDrink, setChoosingDrink] = useState(false)
   const [savingDrink, setSavingDrink] = useState(false)
   const [lastDrink, setLastDrink] = useState<{ name: string; seconds: number } | null>(null)
+  const [members, setMembers] = useState<WorkspaceMember[]>([])
+  const [leftovers, setLeftovers] = useState<CookingHistory[]>([])
+  const [finishing, setFinishing] = useState<{ minutes: number } | null>(null) // formulario de porciones al terminar
 
   const load = useCallback(async (uid: string) => {
     try {
       const dayIndex = (new Date().getDay() + 6) % 7 // 0 = Mon … 6 = Sun
       const thisWeek = formatWeekStart(getWeekStart())
       const nextWeek = formatWeekStart(getWeekStart(tomorrowDate()))
-      const [week, cooked, tomorrowWeek] = await Promise.all([
+      const ws = workspaceCookie()
+      const [week, cooked, tomorrowWeek, memberList, leftoverList] = await Promise.all([
         fetchWeekPlannerRaw(uid, thisWeek),
         fetchCookedToday(uid),
         // On Sunday, tomorrow belongs to next week's plan
         nextWeek === thisWeek ? null : fetchWeekPlannerRaw(uid, nextWeek),
+        // Sin miembros o sin sobras solo se pierden los nombres y la lista de la nevera
+        ws ? fetchMembers(ws).catch(() => []) : [],
+        fetchLeftovers(uid, ws).catch(() => []),
       ])
       setToday(week.filter(e => e.day_of_week === dayIndex))
       setTomorrow((tomorrowWeek ?? week).filter(e => e.day_of_week === tomorrowIndex()))
       setCookedToday(cooked)
+      setMembers(memberList)
+      setLeftovers(leftoverList)
     } finally { setLoading(false) }
   }, [])
 
@@ -139,17 +151,31 @@ export default function TodayPlanner() {
     writeTimer(null); setTimer(null)
   }
 
-  async function stop() {
-    if (!timer || !userId) return
+  // Personas que comen un plato: todos los miembros si es "para todos", si no solo uno
+  const peopleFor = (entry: WeeklyPlanner | undefined) => entry?.for_user_id ? 1 : Math.max(1, members.length)
+
+  // "Terminar" para el cronómetro y pregunta cuántas porciones salieron y cuántas se guardan
+  function stop() {
+    if (!timer) return
+    setError(null)
+    setFinishing({ minutes: Math.max(1, Math.round((nowMs() - timer.startedAt) / 60000)) })
+  }
+
+  async function confirmFinish({ servings, leftovers: kept }: { servings: number; leftovers: number }) {
+    if (!timer || !finishing || !userId) return
     setSaving(true); setError(null)
     try {
-      const minutes = Math.max(1, Math.round((nowMs() - timer.startedAt) / 60000))
       const entry = today.find(e => e.id === timer.entryId)
       const mealType = entry && (['desayuno', 'almuerzo', 'cena'] as const).find(m => m === entry.meal_type)
-      const historyId = await finishRecipe(timer.recipeId, userId, workspaceCookie(), minutes,
-        mealType ? { mealType, plannerEntryId: timer.entryId } : undefined)
-      setCookedToday(prev => [...prev, { id: historyId, recipe_id: timer.recipeId, planner_entry_id: mealType ? timer.entryId : null, diners: [] }])
-      writeTimer(null); setTimer(null)
+      const historyId = await finishRecipe(entry?.recipe ?? { id: timer.recipeId, servings: null }, userId, workspaceCookie(), {
+        servings,
+        leftovers: kept,
+        actualMinutes: finishing.minutes,
+        meal: mealType ? { mealType, plannerEntryId: timer.entryId } : undefined,
+      })
+      setCookedToday(prev => [...prev, { id: historyId, user_id: userId, recipe_id: timer.recipeId, planner_entry_id: mealType ? timer.entryId : null, diners: [] }])
+      writeTimer(null); setTimer(null); setFinishing(null)
+      if (kept > 0) fetchLeftovers(userId, workspaceCookie()).then(setLeftovers).catch(() => {})
       // Si falla solo se pierde la pregunta; la receta ya quedó en el historial
       pantryAfterCooking(timer.recipeId, userId, workspaceCookie()).then(setPantryUses).catch(() => {})
     } catch {
@@ -181,11 +207,24 @@ export default function TodayPlanner() {
     } finally { setSavingDrink(false) }
   }
 
-  // "Empezar a comer" (o "Tomar" si la comida es solo bebida): se apunta como comensal y se toma su bebida
+  // "Empezar a comer" (o "Tomar" si la comida es solo bebida, o "Comer" si son sobras):
+  // se apunta como comensal, se come su porción de sobras y se toma su bebida
   async function eat(entry: WeeklyPlanner, history: CookedToday | undefined) {
     if (!userId) return
     setEating(entry.id); setError(null)
     try {
+      if (entry.leftover_history_id && !entry.leftovers_eaten_by.includes(userId)) {
+        await eatPlannedLeftovers(entry.id)
+        const leftoverId = entry.leftover_history_id
+        setToday(prev => prev.map(e => e.id === entry.id ? {
+          ...e,
+          leftovers_eaten_by: [...e.leftovers_eaten_by, userId],
+          leftover: e.leftover && { ...e.leftover, leftover_servings: Math.max(0, e.leftover.leftover_servings! - 1) },
+        } : e))
+        setLeftovers(prev => prev
+          .map(h => h.id === leftoverId ? { ...h, leftover_servings: (h.leftover_servings ?? 0) - 1 } : h)
+          .filter(h => (h.leftover_servings ?? 0) > 0))
+      }
       if (history) {
         await startEating(history.id, userId)
         setCookedToday(prev => prev.map(h => h.id === history.id && !h.diners.some(d => d.user_id === userId)
@@ -245,6 +284,28 @@ export default function TodayPlanner() {
       })
       setDay(day)(prev => withEntry(prev, { ...entry, recipe }))
       openDrinkPicker(day, meal, entry.id) // segundo paso: la bebida va aparte de la receta
+    } catch {
+      setError('No se pudo guardar en el planificador. Inténtalo de nuevo.')
+    } finally { setPlanning(false) }
+  }
+
+  // Comida de sobras: no se cocina, cada uno se come una porción de lo guardado
+  async function planLeftover(leftover: CookingHistory) {
+    if (!userId || !picker) return
+    const { day, meal } = picker
+    setPlanning(true)
+    try {
+      const entry = await upsertPlannerEntry({
+        user_id: userId,
+        workspace_id: null,
+        for_user_id: scope === 'me' ? userId : null,
+        ...slotFor(day, meal),
+        recipe_id: leftover.recipe_id,
+        leftover_history_id: leftover.id,
+        notes: null,
+      })
+      setDay(day)(prev => withEntry(prev, { ...entry, recipe: leftover.recipe }))
+      openDrinkPicker(day, meal, entry.id)
     } catch {
       setError('No se pudo guardar en el planificador. Inténtalo de nuevo.')
     } finally { setPlanning(false) }
@@ -315,7 +376,7 @@ export default function TodayPlanner() {
     if (h) { historyByEntry.set(e.id, h); usedHistory.add(h.id) }
   })
   MEALS.forEach(({ key }) => {
-    const entry = visibleToday.find(e => e.meal_type === key && e.recipe_id)
+    const entry = visibleToday.find(e => e.meal_type === key && e.recipe_id && !e.leftover_history_id)
     if (!entry || historyByEntry.has(entry.id)) return
     const h = cookedToday.find(h => !h.planner_entry_id && !usedHistory.has(h.id) && h.recipe_id === entry.recipe_id)
     if (h) { historyByEntry.set(entry.id, h); usedHistory.add(h.id) }
@@ -331,7 +392,7 @@ export default function TodayPlanner() {
         <p className="font-mono text-xs tracking-[0.08em] text-lime">PLANIFICADOR · HOY</p>
 
         {!loading && (
-          <div className="flex max-w-sm flex-col gap-1 rounded-[20px] bg-white/[0.05] p-3 backdrop-blur-[2px]">
+          <div className="flex max-w-sm flex-col gap-1 rounded-[20px] bg-white/5 p-3 backdrop-blur-[2px]">
             <div className="flex items-center justify-between gap-3 px-1.5 pb-1">
               <p className="font-mono text-[11px] tracking-[0.08em] text-white/55 uppercase">
                 Mañana · {tomorrowDate().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' })}
@@ -340,7 +401,8 @@ export default function TodayPlanner() {
             </div>
             {MEALS.map(({ key, label }) => {
               const planned = visibleTomorrow.find(e => e.meal_type === key && isPlanned(e))
-              const name = planned?.recipe?.name ?? planned?.drink?.name
+              const recipeName = planned?.recipe && (planned.leftover_history_id ? `Sobras · ${planned.recipe.name}` : planned.recipe.name)
+              const name = recipeName ?? planned?.drink?.name
               const drinkName = planned?.recipe && planned.drink?.name
               return (
                 <button key={key} type="button" onClick={() => openPicker('tomorrow', key)}
@@ -372,7 +434,7 @@ export default function TodayPlanner() {
           if (!entry) {
             return (
               <button key={key} type="button" onClick={() => openPicker('today', key)}
-                className="flex cursor-pointer items-center justify-between rounded-2xl bg-white/[0.07] px-4 py-3.25 text-left text-[15px] transition-colors hover:bg-white/[0.12]">
+                className="flex cursor-pointer items-center justify-between rounded-2xl bg-white/[0.07] px-4 py-3.25 text-left text-[15px] transition-colors hover:bg-white/12">
                 <span>{label}</span>
                 <span className="text-[13px] text-lime">Añadir +</span>
               </button>
@@ -380,13 +442,21 @@ export default function TodayPlanner() {
           }
 
           const drinkOnly = !entry.recipe_id
+          const leftoverMeal = !!entry.leftover_history_id
           const history = historyByEntry.get(entry.id)
           const running = !drinkOnly && timer?.entryId === entry.id
           const ate = !!history?.diners.some(d => d.user_id === userId)
+          const ateLeftovers = !!userId && entry.leftovers_eaten_by.includes(userId)
           const drank = !!userId && entry.drink_taken_by.includes(userId)
           const diners = history?.diners.length ?? 0
           const busy = eating === entry.id
-          const status = [label, history && 'Cocinado', diners > 0 && `${diners} a la mesa`].filter(Boolean).join(' · ')
+          const remaining = entry.leftover?.leftover_servings
+          const status = [
+            label,
+            leftoverMeal && (remaining != null ? `Sobras · quedan ${remaining}` : 'Sobras'),
+            history && `Cocinado por ${memberLabel(members, history.user_id, userId)}`,
+            diners > 0 && `${diners} a la mesa`,
+          ].filter(Boolean).join(' · ')
 
           const editButton = (
             <button type="button" onClick={() => openPicker('today', key)} aria-label="Cambiar" title="Cambiar"
@@ -442,6 +512,17 @@ export default function TodayPlanner() {
                       {editButton}
                       <button onClick={() => eat(entry, undefined)} disabled={busy} className={limeButton}>
                         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CupSoda className="h-4 w-4" />} Tomar
+                      </button>
+                    </div>
+                  )
+                ) : leftoverMeal ? (
+                  ateLeftovers ? (
+                    <span className={pill}><Check className="h-4 w-4 stroke-[2.6]" /> ¡Buen provecho!</span>
+                  ) : (
+                    <div className="flex shrink-0 items-center gap-2">
+                      {editButton}
+                      <button onClick={() => eat(entry, undefined)} disabled={busy} className={limeButton}>
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Refrigerator className="h-4 w-4" />} Comer
                       </button>
                     </div>
                   )
@@ -513,6 +594,12 @@ export default function TodayPlanner() {
             <span className="flex shrink-0 items-center gap-1 text-[13px] text-lime"><Play className="size-3.5 fill-current" /> Cronometrar</span>
           </button>
         ))}
+        {!loading && leftovers.length > 0 && (
+          <Link href="/dashboard/inventory" className="flex items-center gap-2 px-1 text-xs text-white/60 transition-colors hover:text-lime">
+            <Refrigerator className="size-3.5 shrink-0" />
+            <span className="truncate">En la nevera: {leftovers.map(h => `${h.recipe?.name ?? 'Receta'} (${h.leftover_servings})`).join(' · ')}</span>
+          </Link>
+        )}
         {error && <p className="text-sm text-red-300">{error}</p>}
       </div>
 
@@ -537,6 +624,7 @@ export default function TodayPlanner() {
         >
           {currentWorkspaceId() && <ScopeToggle value={scope} onChange={setScope} />}
           <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
+          {!pickerSearch && <LeftoverOptions leftovers={leftovers} currentId={pickerEntry?.leftover_history_id ?? null} disabled={planning} onPick={planLeftover} />}
           {recipes === null ? (
             <LoadingState className="py-8" />
           ) : (
@@ -544,7 +632,7 @@ export default function TodayPlanner() {
               {pickerRecipes.length === 0 ? (
                 <p className="py-8 text-center text-sm text-ink-5">No hay recetas disponibles.</p>
               ) : pickerRecipes.map(recipe => {
-                const current = pickerEntry?.recipe_id === recipe.id
+                const current = pickerEntry?.recipe_id === recipe.id && !pickerEntry.leftover_history_id
                 return (
                   <button key={recipe.id} disabled={planning}
                     className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors disabled:opacity-50 ${current ? 'bg-lime/40' : 'hover:bg-sage'}`}
@@ -590,6 +678,22 @@ export default function TodayPlanner() {
           onClose={() => setChoosingDrink(false)}
         />
       )}
+
+      {finishing && timer && (() => {
+        const entry = today.find(e => e.id === timer.entryId)
+        return (
+          <FinishCookingModal
+            recipeName={entry?.recipe?.name ?? 'Receta'}
+            recipeServings={entry?.recipe?.servings ?? null}
+            defaults={defaultPortions(entry?.recipe?.servings ?? null, peopleFor(entry))}
+            minutes={finishing.minutes}
+            saving={saving}
+            error={error}
+            onConfirm={confirmFinish}
+            onClose={() => setFinishing(null)}
+          />
+        )
+      })()}
 
       {pantryUses.length > 0 && userId && <PantryCheckModal userId={userId} uses={pantryUses} onClose={() => setPantryUses([])} />}
     </section>

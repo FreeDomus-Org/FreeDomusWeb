@@ -44,7 +44,7 @@ interface LinkedIngredient {
 const EMPTY_FORM: RecipeCreate = {
   user_id: '', workspace_id: null, name: '', meal_type: 'Almuerzo', category: [],
   ingredients_summary: '', preparation_steps: '', time_minutes: 30, difficulty: 'Fácil',
-  servings: 2, total_calories: null, total_price: null, rating: null, allergens: [],
+  servings: 1, total_calories: null, total_price: null, rating: null, allergens: [],
   image_url: null, is_public: false, is_favorite: false,
 }
 
@@ -198,7 +198,7 @@ export default function RecipesPage() {
       user_id: r.user_id, workspace_id: r.workspace_id, name: r.name, meal_type: r.meal_type,
       category: r.category, ingredients_summary: r.ingredients_summary ?? '',
       preparation_steps: r.preparation_steps ?? '', time_minutes: r.time_minutes ?? 30,
-      difficulty: r.difficulty ?? 'Fácil', servings: r.servings ?? 2,
+      difficulty: r.difficulty ?? 'Fácil', servings: r.servings ?? 1,
       total_calories: r.total_calories, total_price: r.total_price, rating: r.rating,
       allergens: r.allergens, image_url: r.image_url, is_public: r.is_public, is_favorite: r.is_favorite,
     })
@@ -543,7 +543,7 @@ export default function RecipesPage() {
                     placeholder="Cantidad" className="h-10 w-24 rounded-xl bg-card px-3 text-sm" />
                 )}
                 <select value={ingUnit} onChange={e => setIngUnit(e.target.value)}
-                  className="h-10 w-24 shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none [background-position:right_10px_center]">
+                  className="h-10 w-24 shrink-0 rounded-xl border-0 bg-card pr-8 pl-3 text-sm font-medium outline-none bg-position-[right_10px_center]">
                   {INGREDIENT_UNITS.map(u => <option key={u}>{u}</option>)}
                 </select>
                 <Input value={ingNotes} onChange={e => setIngNotes(e.target.value)}
@@ -577,7 +577,7 @@ export default function RecipesPage() {
             <Field label="Tiempo (min)">
               <Input type="number" min={1} value={form.time_minutes ?? ''} onChange={e => setForm(f => ({ ...f, time_minutes: +e.target.value || null }))} />
             </Field>
-            <Field label="Porciones">
+            <Field label="Porciones" hint="las cantidades son para estas">
               <Input type="number" min={1} value={form.servings ?? ''} onChange={e => setForm(f => ({ ...f, servings: +e.target.value || null }))} />
             </Field>
             <Field label="Dificultad">

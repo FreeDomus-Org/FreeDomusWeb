@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { RecipeIngredient, Inventory, CookingHistory, DrinkHistory, WeeklyPlanner, Product, StockLevel } from '@/types'
+import type { RecipeIngredient, Inventory, CookingHistory, DrinkHistory, WeeklyPlanner, Product, Recipe, StockLevel } from '@/types'
 import { LOOSE_UNITS, STOCK_LEVELS } from '@/types'
 import { workspaceScope } from '@/lib/workspace'
 
@@ -159,28 +159,45 @@ export async function checkIngredients(
 }
 
 // ─── Terminar receta: descontar del inventario ────────────────────────────────
+// Las cantidades de la receta son para recipe.servings porciones: se descuenta en proporción a las preparadas.
+// Lo que no se come se guarda como sobras (leftovers) en el registro del historial.
+
+export interface FinishOptions {
+  servings: number    // porciones preparadas
+  leftovers?: number  // de esas, las que se guardan
+  actualMinutes?: number | null
+  // Desde "¿Qué cocinamos hoy?" se sabe la comida y el plato planificado
+  meal?: { mealType: NonNullable<CookingHistory['meal_type']>; plannerEntryId: string }
+}
 
 export async function finishRecipe(
-  recipeId: string,
+  recipe: Pick<Recipe, 'id' | 'servings'>,
   userId: string,
   workspaceId: string | null,
-  actualMinutes: number | null = null,
-  // Desde "¿Qué cocinamos hoy?" se sabe la comida y el plato planificado
-  meal?: { mealType: NonNullable<CookingHistory['meal_type']>; plannerEntryId: string },
+  { servings, leftovers = 0, actualMinutes = null, meal }: FinishOptions,
 ): Promise<string> {
-  await deductFromInventory(recipeId, userId, workspaceId)
+  await deductFromInventory(recipe.id, userId, workspaceId, servings / (recipe.servings || 1))
 
   const { data, error } = await createClient().from('cooking_history').insert({
     user_id: userId,
     workspace_id: workspaceId,
-    recipe_id: recipeId,
+    recipe_id: recipe.id,
     cooked_at: new Date().toISOString(),
+    servings,
+    leftover_servings: Math.min(Math.max(0, leftovers), servings),
     actual_time_minutes: actualMinutes,
     meal_type: meal?.mealType ?? null,
     planner_entry_id: meal?.plannerEntryId ?? null,
   }).select('id').single()
   if (error) throw error
   return data.id as string
+}
+
+// Porciones por defecto al terminar: las de las personas que comen, o la receta entera si da para más
+// (p. ej. una pizza de 4 porciones para 2 personas: se hacen 4 y se guardan 2)
+export function defaultPortions(recipeServings: number | null, people: number): { servings: number; leftovers: number } {
+  const servings = Math.max(people, recipeServings || 1)
+  return { servings, leftovers: servings - people }
 }
 
 // ─── Bebida de una comida planificada ─────────────────────────────────────────
@@ -238,7 +255,8 @@ async function deductDrinkServing(productId: string, userId: string, workspaceId
 async function deductFromInventory(
   recipeId: string,
   userId: string,
-  workspaceId: string | null
+  workspaceId: string | null,
+  scale: number,
 ): Promise<void> {
   const supabase = createClient()
 
@@ -251,7 +269,8 @@ async function deductFromInventory(
   const exact = ((ings ?? []) as RecipeIngredient[]).filter(ing => !isLooseIngredient(ing))
   if (exact.length === 0) return
 
-  await deductItems(exact, await fetchScopedInventory(userId, workspaceId))
+  const scaled = exact.map(ing => ({ ...ing, quantity: ing.quantity * scale }))
+  await deductItems(scaled, await fetchScopedInventory(userId, workspaceId))
 }
 
 // ─── Después de cocinar: ¿cómo quedaron los productos a ojo? ──────────────────

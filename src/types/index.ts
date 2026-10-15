@@ -117,12 +117,15 @@ export interface WeeklyPlanner {
   for_user_id: string | null // null = plato para todo el espacio de trabajo
   drink_product_id: string | null // bebida de la comida (producto del catálogo)
   drink_taken_by: string[] // usuarios que ya se la tomaron (una ración del inventario cada uno)
+  leftover_history_id: string | null // comida de sobras: el registro del historial del que salen
+  leftovers_eaten_by: string[] // usuarios que ya se comieron su porción de las sobras
   created_at: string
   recipe?: Recipe
   drink?: Product | null
+  leftover?: Pick<CookingHistory, 'id' | 'leftover_servings' | 'cooked_at'> | null
 }
 
-export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe' | 'drink' | 'for_user_id' | 'drink_product_id' | 'drink_taken_by'> & { for_user_id?: string | null; drink_product_id?: string | null }
+export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe' | 'drink' | 'leftover' | 'for_user_id' | 'drink_product_id' | 'drink_taken_by' | 'leftover_history_id' | 'leftovers_eaten_by'> & { for_user_id?: string | null; drink_product_id?: string | null; leftover_history_id?: string | null }
 
 // ─── Cooking History ──────────────────────────────────────────────────────────
 export interface CookingHistory {
@@ -131,7 +134,8 @@ export interface CookingHistory {
   workspace_id: string | null
   recipe_id: string
   cooked_at: string
-  servings: number | null
+  servings: number | null // porciones preparadas
+  leftover_servings?: number // porciones guardadas que aún no se han comido (sobras)
   rating: number | null
   feedback: string | null
   actual_time_minutes: number | null
