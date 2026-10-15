@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader, Chip, ChipRow, SearchField, Field, NativeSelect, IconAction, SidePanel, CenterModal, EmptyState, LoadingState, StatTile } from '@/components/ui/freedomus'
-import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, AlertTriangle, PackageX, ScanLine } from 'lucide-react'
+import { ScanReceiptModal } from '@/components/inventory/ScanReceiptModal'
 
 const LOCATION_COLORS: Record<string, string> = {
   Nevera: 'bg-sky text-sky-ink',
@@ -71,6 +72,7 @@ export default function InventoryPage() {
   const [damaged, setDamaged] = useState<Inventory | null>(null)
   const [damagedQty, setDamagedQty] = useState<string | number>('')
   const [reportingDamage, setReportingDamage] = useState(false)
+  const [showScan, setShowScan] = useState(false)
 
   const load = useCallback(async (uid: string) => {
     setLoading(true)
@@ -189,6 +191,7 @@ export default function InventoryPage() {
   return (
     <div className="flex flex-1 flex-col gap-4.5">
       <PageHeader title="Inventario">
+        <Button onClick={() => setShowScan(true)} size="sm" variant="outline"><ScanLine className="stroke-[2.4]" /> Escanear compra</Button>
         <Button onClick={openAdd} size="sm"><Plus className="stroke-[2.4]" /> Añadir item</Button>
       </PageHeader>
 
@@ -244,6 +247,14 @@ export default function InventoryPage() {
             )
           })}
         </div>
+      )}
+
+      {showScan && userId && (
+        <ScanReceiptModal
+          userId={userId}
+          onClose={() => setShowScan(false)}
+          onImported={() => { setShowScan(false); setLocationFilter('all'); load(userId) }}
+        />
       )}
 
       {damaged && (

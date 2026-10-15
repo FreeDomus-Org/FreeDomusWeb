@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { fetchRecipes, createRecipe, updateRecipe, deleteRecipe, toggleFavorite } from '@/lib/services/recipes'
 import { fetchRecipeIngredients, setRecipeIngredients } from '@/lib/services/recipeIngredients'
-import { fetchProducts } from '@/lib/services/products'
+import { fetchProducts, createProduct } from '@/lib/services/products'
 import { uploadRecipeImage, removeRecipeImage, setRecipeImage } from '@/lib/services/recipeImages'
 import RecipeDetailPanel from '@/components/recipes/RecipeDetailPanel'
 import type { Recipe, RecipeCreate, Product } from '@/types'
@@ -80,6 +80,8 @@ export default function RecipesPage() {
   const [ingUnit, setIngUnit] = useState('g')
   const [ingNotes, setIngNotes] = useState('')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [creatingProduct, setCreatingProduct] = useState(false)
+  const [productError, setProductError] = useState<string | null>(null)
   // false mientras se cargan los ingredientes guardados de la receta en edición (o si falló la carga)
   const [ingredientsLoaded, setIngredientsLoaded] = useState(true)
   const editingIdRef = useRef<string | null>(null)
@@ -205,6 +207,19 @@ export default function RecipesPage() {
     if (!selectedProduct || !ingQty) return
     setLinkedIngredients(prev => [...prev, { product: selectedProduct, quantity: +ingQty, unit: ingUnit, notes: ingNotes }])
     setSelectedProduct(null); setProductSearch(''); setIngQty(''); setIngNotes('')
+  }
+
+  // Alta rápida en el catálogo cuando el ingrediente aún no existe; luego se completa en Productos
+  async function handleCreateAndSelectProduct(name: string) {
+    if (!userId || !name) return
+    setCreatingProduct(true); setProductError(null)
+    try {
+      const p = await createProduct({ user_id: userId, workspace_id: null, name, brand: null, barcode: null, category: 'Otros', unit: 'g', calories: null, protein: null, carbs: null, fat: null, allergens: [], is_custom: true })
+      setProducts(prev => [...prev, p].sort((a, b) => a.name.localeCompare(b.name)))
+      setSelectedProduct(p); setIngUnit(p.unit); setProductSearch('')
+    } catch (err) {
+      setProductError(err instanceof Error ? err.message : 'No se pudo crear el producto')
+    } finally { setCreatingProduct(false) }
   }
 
   function removeLinkedIngredient(idx: number) {
@@ -486,7 +501,7 @@ export default function RecipesPage() {
               <Search className="size-4.25 shrink-0 text-ink-4" />
               <input
                 value={selectedProduct ? selectedProduct.name : productSearch}
-                onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null) }}
+                onChange={e => { setProductSearch(e.target.value); setSelectedProduct(null); setProductError(null) }}
                 placeholder="Buscar producto del catálogo..."
                 className="min-w-0 flex-1 border-0 bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-ink-5"
               />
@@ -504,12 +519,16 @@ export default function RecipesPage() {
               </div>
             )}
             {productSearch.trim() && productResults.length === 0 && !selectedProduct && (
-              <p className="px-1 text-xs text-ink-4">
-                {products.length === 0
-                  ? 'Aún no tienes productos en el catálogo. Créalos primero en Productos.'
-                  : `No hay productos que coincidan con "${productSearch.trim()}". Créalo primero en Productos.`}
-              </p>
+              <div className="flex flex-wrap items-center gap-2 px-1">
+                <p className="text-xs text-ink-4">No hay productos que coincidan con &ldquo;{productSearch.trim()}&rdquo;.</p>
+                <button type="button" onClick={() => handleCreateAndSelectProduct(productSearch.trim())} disabled={creatingProduct}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[13px] font-semibold text-leaf hover:bg-sage disabled:cursor-default disabled:opacity-60">
+                  {creatingProduct ? <Loader2 className="size-3 animate-spin" /> : <Plus className="size-3 stroke-[2.4]" />}
+                  Crear &ldquo;{productSearch.trim()}&rdquo;
+                </button>
+              </div>
             )}
+            {productError && <p className="px-1 text-xs text-danger">{productError}</p>}
             {selectedProduct && (
               <div className="flex items-center gap-2">
                 <Input type="number" min={0} step="any" value={ingQty} onChange={e => setIngQty(e.target.value)}

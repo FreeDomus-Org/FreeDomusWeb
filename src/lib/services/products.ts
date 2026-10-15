@@ -30,6 +30,17 @@ export async function searchProducts(userId: string, term: string): Promise<Prod
   return data ?? []
 }
 
+export async function fetchProductsByBarcodes(userId: string, barcodes: string[]): Promise<Product[]> {
+  if (barcodes.length === 0) return []
+  const workspaceId = currentWorkspaceId()
+  let query = createClient().from('products').select('*')
+  query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
+  const { data, error } = await query.in('barcode', barcodes)
+
+  if (error) throw error
+  return data ?? []
+}
+
 // Se crea en el espacio de trabajo actual salvo que se indique otro
 export async function createProduct(product: ProductCreate): Promise<Product> {
   const row = { ...product, workspace_id: product.workspace_id ?? currentWorkspaceId() }

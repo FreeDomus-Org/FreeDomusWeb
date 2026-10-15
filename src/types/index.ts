@@ -81,11 +81,14 @@ export interface WeeklyPlanner {
   recipe_id: string | null
   notes: string | null
   for_user_id: string | null // null = plato para todo el espacio de trabajo
+  drink_product_id: string | null // bebida de la comida (producto del catálogo)
+  drink_taken_by: string[] // usuarios que ya se la tomaron (una ración del inventario cada uno)
   created_at: string
   recipe?: Recipe
+  drink?: Product | null
 }
 
-export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe' | 'for_user_id'> & { for_user_id?: string | null }
+export type WeeklyPlannerCreate = Omit<WeeklyPlanner, 'id' | 'created_at' | 'recipe' | 'drink' | 'for_user_id' | 'drink_product_id' | 'drink_taken_by'> & { for_user_id?: string | null; drink_product_id?: string | null }
 
 // ─── Cooking History ──────────────────────────────────────────────────────────
 export interface CookingHistory {

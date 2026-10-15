@@ -57,6 +57,15 @@ export async function createInventoryItem(item: InventoryCreate): Promise<Invent
   return data as Inventory
 }
 
+// Alta en bloque (importación de una factura escaneada)
+export async function createInventoryItems(items: InventoryCreate[]): Promise<void> {
+  const workspaceId = currentWorkspaceId()
+  const { error } = await createClient()
+    .from('inventory')
+    .insert(items.map(item => ({ ...item, workspace_id: item.workspace_id ?? workspaceId })))
+  if (error) throw error
+}
+
 export async function updateInventoryItem(id: string, updates: Partial<InventoryCreate>): Promise<Inventory> {
   const { data, error } = await createClient()
     .from('inventory')

@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
+import { fetchWeekPlannerRaw, visibleEntries, withEntry, upsertPlannerEntry, setPlannerDrink, deletePlannerEntry, getWeekStart, formatWeekStart } from '@/lib/services/planner'
 import { currentWorkspaceId } from '@/lib/workspace'
 import { ScopeToggle, type PlannerScope } from '@/components/planner/ScopeToggle'
+import { DrinkPicker } from '@/components/planner/DrinkPicker'
 import { fetchRecipes } from '@/lib/services/recipes'
-import type { WeeklyPlanner, Recipe } from '@/types'
+import type { WeeklyPlanner, Recipe, Product } from '@/types'
+import { Button } from '@/components/ui/button'
 import { PageHeader, IconAction, CenterModal, LoadingState, SearchField } from '@/components/ui/freedomus'
-import { ChevronLeft, ChevronRight, X, Flame, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flame, User, CupSoda } from 'lucide-react'
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 const MEAL_TYPES = [
@@ -41,6 +43,9 @@ export default function PlannerPage() {
   const [pickerSearch, setPickerSearch] = useState('')
   const [pickerScope, setPickerScope] = useState<PlannerScope>('all')
   const [saving, setSaving] = useState(false)
+  // Paso de bebida tras elegir receta (sin entryId = comida de solo bebida)
+  const [drinkFor, setDrinkFor] = useState<{ entryId?: string } | null>(null)
+  const [drinkError, setDrinkError] = useState<string | null>(null)
 
   const load = useCallback(async (uid: string, ws: Date) => {
     setLoading(true)
@@ -65,7 +70,7 @@ export default function PlannerPage() {
   const visiblePlan = userId ? visibleEntries(plan, userId) : plan
 
   function getEntry(day: number, mealType: string) {
-    return visiblePlan.find(e => e.day_of_week === day && e.meal_type === mealType) ?? null
+    return visiblePlan.find(e => e.day_of_week === day && e.meal_type === mealType && (e.recipe_id || e.drink_product_id)) ?? null
   }
 
   async function handleSelectRecipe(recipe: Recipe) {
@@ -84,6 +89,47 @@ export default function PlannerPage() {
       })
       setPlan(prev => withEntry(prev, { ...entry, recipe }))
       setShowPicker(false)
+      openDrinkPicker(entry.id) // segundo paso: la bebida va aparte de la receta
+    } finally { setSaving(false) }
+  }
+
+  function openDrinkPicker(entryId?: string) {
+    setShowPicker(false); setDrinkError(null); setDrinkFor({ entryId })
+  }
+
+  async function handleSelectDrink(drink: Product | null) {
+    if (!userId || !drinkFor) return
+    const { entryId } = drinkFor
+    const entry = entryId ? plan.find(e => e.id === entryId) : undefined
+    setSaving(true); setDrinkError(null)
+    try {
+      if (!entryId) {
+        // Comida de solo bebida (p. ej. un café)
+        if (drink) {
+          const created = await upsertPlannerEntry({
+            user_id: userId,
+            workspace_id: null,
+            for_user_id: pickerScope === 'me' ? userId : null,
+            week_start_date: formatWeekStart(weekStart),
+            day_of_week: pickerDay,
+            meal_type: pickerMeal,
+            recipe_id: null,
+            drink_product_id: drink.id,
+            notes: null,
+          })
+          setPlan(prev => withEntry(prev, created))
+        }
+      } else if (!drink && !entry?.recipe_id) {
+        // Sin receta y sin bebida no queda nada que planificar
+        await deletePlannerEntry(entryId)
+        setPlan(prev => prev.filter(e => e.id !== entryId))
+      } else {
+        const updated = await setPlannerDrink(entryId, drink?.id ?? null)
+        setPlan(prev => prev.map(e => e.id === entryId ? { ...e, drink_product_id: updated.drink_product_id, drink: updated.drink } : e))
+      }
+      setDrinkFor(null)
+    } catch {
+      setDrinkError('No se pudo guardar la bebida. Inténtalo de nuevo.')
     } finally { setSaving(false) }
   }
 
@@ -110,6 +156,8 @@ export default function PlannerPage() {
     if (userId) load(userId, start)
   }
 
+  const pickerEntry = showPicker || drinkFor ? getEntry(pickerDay, pickerMeal) : null
+  const drinkEntry = drinkFor?.entryId ? plan.find(e => e.id === drinkFor.entryId) : undefined
   const filteredRecipes = recipes.filter(r => r.name.toLowerCase().includes(pickerSearch.toLowerCase()))
   const kcal = totalCalories(visiblePlan)
 
@@ -154,10 +202,19 @@ export default function PlannerPage() {
                 {DAYS.map((_, dayIdx) => {
                   const entry = getEntry(dayIdx, key)
                   return entry ? (
-                    <div key={dayIdx} className={`group relative flex min-h-24 rounded-[20px] p-3 text-[13.5px] leading-tight font-semibold ${cell}`}>
-                      <button className="flex-1 cursor-pointer text-left hover:underline" onClick={() => openPicker(dayIdx, key)}>
-                        {entry.recipe?.name ?? '...'}
+                    <div key={dayIdx} className={`group relative flex min-h-24 flex-col gap-1.5 rounded-[20px] p-3 text-[13.5px] leading-tight font-semibold ${cell}`}>
+                      <button className="flex-1 cursor-pointer pr-5 text-left hover:underline" onClick={() => openPicker(dayIdx, key)}>
+                        {entry.recipe_id
+                          ? entry.recipe?.name ?? '...'
+                          : <span className="flex items-center gap-1.5"><CupSoda className="size-3.5 shrink-0" />{entry.drink?.name ?? '...'}</span>}
                       </button>
+                      {entry.recipe_id && (
+                        <button onClick={() => { setPickerDay(dayIdx); setPickerMeal(key); openDrinkPicker(entry.id) }}
+                          className={`flex min-w-0 cursor-pointer items-center gap-1 pr-5 text-left text-[11.5px] font-medium hover:underline ${entry.drink ? 'opacity-75' : 'opacity-0 transition-opacity group-hover:opacity-60 pointer-coarse:opacity-60'}`}>
+                          <CupSoda className="size-3 shrink-0" />
+                          <span className="truncate">{entry.drink?.name ?? 'Bebida'}</span>
+                        </button>
+                      )}
                       {entry.for_user_id && <User className="absolute right-2 bottom-2 size-3.5 opacity-60" aria-label="Solo para ti" />}
                       <button onClick={() => handleRemove(entry)} aria-label="Quitar"
                         className="absolute top-2 right-2 grid size-6 pointer-coarse:size-8 cursor-pointer place-items-center rounded-full bg-white/70 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100 hover:text-danger">
@@ -181,9 +238,14 @@ export default function PlannerPage() {
       {showPicker && (
         <CenterModal
           eyebrow="Planificador"
-          title="Elegir receta"
+          title={pickerEntry?.recipe_id ? 'Cambiar receta' : 'Elegir receta'}
           subtitle={`${DAYS[pickerDay]} · ${MEAL_TYPES.find(m => m.key === pickerMeal)?.label}`}
           onClose={() => setShowPicker(false)}
+          footer={
+            <Button variant="outline" className="w-full" disabled={saving} onClick={() => openDrinkPicker(pickerEntry?.id)}>
+              <CupSoda /> {pickerEntry ? (pickerEntry.drink ? 'Cambiar bebida' : 'Elegir bebida') : 'Solo bebida'}
+            </Button>
+          }
         >
           {currentWorkspaceId() && <ScopeToggle value={pickerScope} onChange={setPickerScope} />}
           <SearchField tone="soft" className="h-11 max-w-none" value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Buscar receta..." autoFocus />
@@ -205,6 +267,19 @@ export default function PlannerPage() {
             )}
           </div>
         </CenterModal>
+      )}
+
+      {drinkFor && userId && (
+        <DrinkPicker
+          userId={userId}
+          eyebrow="Planificador"
+          subtitle={[DAYS[pickerDay], MEAL_TYPES.find(m => m.key === pickerMeal)?.label, drinkEntry?.recipe?.name].filter(Boolean).join(' · ')}
+          currentDrinkId={drinkEntry?.drink_product_id ?? null}
+          saving={saving}
+          error={drinkError}
+          onPick={handleSelectDrink}
+          onClose={() => setDrinkFor(null)}
+        />
       )}
     </div>
   )

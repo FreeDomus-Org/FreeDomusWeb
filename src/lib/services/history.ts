@@ -30,18 +30,34 @@ export async function fetchHistorySince(userId: string, since: Date): Promise<Co
   return (data ?? []) as CookingHistory[]
 }
 
-// Recipe ids cooked today (local day) by anyone in the workspace, one per history row
-export async function fetchCookedToday(userId: string): Promise<string[]> {
+export interface CookedToday {
+  id: string
+  recipe_id: string
+  planner_entry_id: string | null
+  diners: { user_id: string; ate_at: string }[]
+}
+
+// What was cooked today (local day) by anyone in the workspace, one per history row, with who already sat down to eat
+export async function fetchCookedToday(userId: string): Promise<CookedToday[]> {
   const start = new Date(); start.setHours(0, 0, 0, 0)
   const end = new Date(start); end.setDate(end.getDate() + 1)
   const workspaceId = currentWorkspaceId()
-  let query = createClient().from('cooking_history').select('recipe_id')
+  let query = createClient().from('cooking_history').select('id, recipe_id, planner_entry_id, diners:cooking_history_diners(user_id, ate_at)')
   query = workspaceId ? query.or(workspaceScope(userId, workspaceId)) : query.eq('user_id', userId)
   const { data, error } = await query
     .gte('cooked_at', start.toISOString())
     .lt('cooked_at', end.toISOString())
+    .order('cooked_at', { ascending: true })
   if (error) throw error
-  return (data ?? []).map(r => r.recipe_id as string)
+  return (data ?? []) as CookedToday[]
+}
+
+// "Empezar a comer": cada comensal se apunta a lo cocinado. Devuelve false si ya estaba apuntado.
+export async function startEating(historyId: string, userId: string): Promise<boolean> {
+  const { error } = await createClient().from('cooking_history_diners').insert({ history_id: historyId, user_id: userId })
+  if (error?.code === '23505') return false // unique (history_id, user_id)
+  if (error) throw error
+  return true
 }
 
 export async function fetchTopRated(userId: string, limit = 10): Promise<CookingHistory[]> {

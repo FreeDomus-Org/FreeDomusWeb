@@ -8,12 +8,14 @@ const fail = (e: { message?: string; details?: string; hint?: string; code?: str
   throw new Error([e.message, e.details, e.hint, e.code && `(${e.code})`].filter(Boolean).join(' · ') || 'Error en el planificador')
 }
 
+const PLANNER_SELECT = '*, recipe:recipes!weekly_planner_recipe_id_fkey(*), drink:products!weekly_planner_drink_product_id_fkey(*)'
+
 const normalize = (e: WeeklyPlanner): WeeklyPlanner => ({ ...e, day_of_week: Number(e.day_of_week) })
 
 // Todas las filas que un usuario puede ver: platos del espacio "para todos" o "solo para él", más lo personal que quede.
 export async function fetchWeekPlannerRaw(userId: string, weekStartDate: string, workspaceId: string | null = currentWorkspaceId()): Promise<WeeklyPlanner[]> {
   const supabase = createClient()
-  let query = supabase.from('weekly_planner').select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)').eq('week_start_date', weekStartDate)
+  let query = supabase.from('weekly_planner').select(PLANNER_SELECT).eq('week_start_date', weekStartDate)
 
   if (workspaceId) {
     query = query.or(`and(workspace_id.eq.${workspaceId},or(for_user_id.is.null,for_user_id.eq.${userId})),and(workspace_id.is.null,user_id.eq.${userId})`)
@@ -47,7 +49,19 @@ export async function upsertPlannerEntry(entry: WeeklyPlannerCreate): Promise<We
   const { data, error } = await createClient()
     .from('weekly_planner')
     .upsert(row, { onConflict: 'workspace_id,week_start_date,day_of_week,meal_type,for_user_id' })
-    .select('*, recipe:recipes!weekly_planner_recipe_id_fkey(*)')
+    .select(PLANNER_SELECT)
+    .single()
+  if (error) fail(error)
+  return normalize(data as WeeklyPlanner)
+}
+
+// Cambia (o quita, con null) la bebida de una comida ya planificada
+export async function setPlannerDrink(entryId: string, drinkProductId: string | null): Promise<WeeklyPlanner> {
+  const { data, error } = await createClient()
+    .from('weekly_planner')
+    .update({ drink_product_id: drinkProductId })
+    .eq('id', entryId)
+    .select(PLANNER_SELECT)
     .single()
   if (error) fail(error)
   return normalize(data as WeeklyPlanner)

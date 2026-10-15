@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/client'
-import type { RecipeIngredient, Inventory, CookingHistory } from '@/types'
+import type { RecipeIngredient, Inventory, CookingHistory, WeeklyPlanner } from '@/types'
 import { workspaceScope } from '@/lib/workspace'
 
 // ─── Sistema de unidades ───────────────────────────────────────────────────────
@@ -131,10 +131,10 @@ export async function finishRecipe(
   actualMinutes: number | null = null,
   // Desde "¿Qué cocinamos hoy?" se sabe la comida y el plato planificado
   meal?: { mealType: NonNullable<CookingHistory['meal_type']>; plannerEntryId: string },
-): Promise<void> {
+): Promise<string> {
   await deductFromInventory(recipeId, userId, workspaceId)
 
-  const { error } = await createClient().from('cooking_history').insert({
+  const { data, error } = await createClient().from('cooking_history').insert({
     user_id: userId,
     workspace_id: workspaceId,
     recipe_id: recipeId,
@@ -142,8 +142,37 @@ export async function finishRecipe(
     actual_time_minutes: actualMinutes,
     meal_type: meal?.mealType ?? null,
     planner_entry_id: meal?.plannerEntryId ?? null,
-  })
+  }).select('id').single()
   if (error) throw error
+  return data.id as string
+}
+
+// ─── Bebida de una comida planificada ─────────────────────────────────────────
+// Una ración por persona: 1 ud si en el inventario se guarda por unidades, un vaso (250 ml) si es por volumen.
+// Por peso no se descuenta (no hay una ración razonable).
+
+const DRINK_SERVING: Partial<Record<Dimension, { quantity: number; unit: string }>> = {
+  count: { quantity: 1, unit: 'ud' },
+  volume: { quantity: 250, unit: 'ml' },
+}
+
+export async function takeDrink(
+  entry: WeeklyPlanner,
+  userId: string,
+  workspaceId: string | null
+): Promise<boolean> {
+  if (!entry.drink_product_id) return false
+  const supabase = createClient()
+  // Marca primero: si ya la había tomado no se vuelve a descontar
+  const { data: marked, error } = await supabase.rpc('take_planner_drink', { p_entry_id: entry.id })
+  if (error) throw error
+  if (!marked) return false
+
+  const inventory = await fetchScopedInventory(userId, workspaceId)
+  const stock = sortByExpiry(inventory.filter(i => i.product_id === entry.drink_product_id))
+  const serving = stock.length ? DRINK_SERVING[dimension(stock[0].unit ?? 'ud')] : undefined
+  if (serving) await deductItems([{ product_id: entry.drink_product_id, ...serving }], inventory)
+  return true
 }
 
 async function deductFromInventory(
@@ -160,28 +189,42 @@ async function deductFromInventory(
 
   if (!ings || ings.length === 0) return
 
-  let invQuery = supabase.from('inventory').select('*')
+  await deductItems(ings as RecipeIngredient[], await fetchScopedInventory(userId, workspaceId))
+}
+
+async function fetchScopedInventory(userId: string, workspaceId: string | null): Promise<Inventory[]> {
+  let invQuery = createClient().from('inventory').select('*')
   if (workspaceId) {
     invQuery = invQuery.or(workspaceScope(userId, workspaceId))
   } else {
     invQuery = invQuery.eq('user_id', userId).is('workspace_id', null)
   }
-  const { data: inventory } = await invQuery
-  if (!inventory) return
+  const { data } = await invQuery
+  return (data ?? []) as Inventory[]
+}
 
-  for (const ing of ings as RecipeIngredient[]) {
+function sortByExpiry(items: Inventory[]): Inventory[] {
+  return [...items].sort((a, b) => {
+    if (a.expiration_date && b.expiration_date) return a.expiration_date.localeCompare(b.expiration_date)
+    if (a.expiration_date) return -1
+    if (b.expiration_date) return 1
+    return 0
+  })
+}
+
+// Descuenta cada cantidad de los items compatibles en dimensión, empezando por los que caducan antes
+async function deductItems(
+  needs: { product_id: string; quantity: number; unit: string }[],
+  inventory: Inventory[]
+): Promise<void> {
+  const supabase = createClient()
+
+  for (const ing of needs) {
     const ingDim = dimension(ing.unit)
     let remaining = toBase(ing.quantity, ing.unit)
 
-    // Solo descontar items compatibles en dimensión, ordenar por fecha de caducidad
-    const items = ((inventory as Inventory[])
+    const items = sortByExpiry(inventory
       .filter(i => i.product_id === ing.product_id && dimension(i.unit ?? ing.unit) === ingDim))
-      .sort((a, b) => {
-        if (a.expiration_date && b.expiration_date) return a.expiration_date.localeCompare(b.expiration_date)
-        if (a.expiration_date) return -1
-        if (b.expiration_date) return 1
-        return 0
-      })
 
     for (const item of items) {
       if (remaining <= 0) break
